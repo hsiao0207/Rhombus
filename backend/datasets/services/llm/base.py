@@ -31,8 +31,8 @@ class RegexSuggestion(BaseModel):
         "Empty if the user did not restrict the columns."
     )
     explanation: str = Field(
-        description="One short sentence for the end user describing what the pattern "
-        "matches, written in the same language as the user's request."
+        description="One short sentence in English for the end user describing what the "
+        "pattern matches."
     )
 
 

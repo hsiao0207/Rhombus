@@ -57,12 +57,12 @@ CASES = [
         ["PHONE", "PHONE", "PHONE"],
     ),
     Case(
-        "把 Phone 欄的電話號碼全部遮蔽成 ***",
+        "Mask every phone number in the Phone column as ***",
         "Phone",
         ["***", "***", "***"],
     ),
     Case(
-        "把 Notes 欄裡的電子郵件換成 [EMAIL]",
+        "In the Notes column, replace email addresses with [EMAIL]",
         "Notes",
         [
             "Call me at 0912-345-678 or email [EMAIL]",
@@ -114,7 +114,7 @@ CASES = [
         ["john.doe@***", "jane_smith@***", "alice.brown@***"],
     ),
     Case(
-        "Notes 欄位中的台灣手機號碼請換成 09XX-XXX-XXX",
+        "Mask Taiwanese mobile numbers in Notes as the literal text 09XX-XXX-XXX",
         "Notes",
         [
             "Call me at 09XX-XXX-XXX or email john.doe@example.com",
