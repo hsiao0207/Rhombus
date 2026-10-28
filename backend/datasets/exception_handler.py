@@ -50,6 +50,15 @@ def api_exception_handler(exc, context):
             status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
+    if isinstance(exc, drf_exceptions.Throttled):
+        minutes = max(1, round((exc.wait or 60) / 60))
+        return _error_response(
+            "THROTTLED",
+            f"Too many requests. Please try again in about {minutes} minute(s).",
+            {"retry_after_seconds": exc.wait},
+            response.status_code,
+        )
+
     if isinstance(exc, drf_exceptions.ValidationError):
         return _error_response(
             "VALIDATION_ERROR", "Invalid request.", {"fields": response.data}, response.status_code

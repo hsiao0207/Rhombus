@@ -22,6 +22,7 @@ const TITLES: Record<string, string> = {
   STALE_VERSION: 'Data changed since this preview',
   ALREADY_APPLIED: 'Already applied',
   NOT_FOUND: 'Not found',
+  THROTTLED: 'Too many requests',
   VALIDATION_ERROR: 'Please check your input',
 }
 

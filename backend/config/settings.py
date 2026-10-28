@@ -7,6 +7,7 @@ convenience during development.
 """
 
 import os
+import re
 from pathlib import Path
 
 import dj_database_url
@@ -48,6 +49,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Serves Django's static files and the built React app (see WHITENOISE_ROOT).
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -97,6 +100,29 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
+
+# The built React app (`npm run build`) is served from the site root, so the frontend
+# and the API share one origin in production just like with the Vite proxy in development.
+FRONTEND_DIST = Path(os.getenv("FRONTEND_DIST", BASE_DIR.parent / "frontend" / "dist"))
+if FRONTEND_DIST.is_dir():
+    WHITENOISE_ROOT = FRONTEND_DIST
+    WHITENOISE_INDEX_FILE = True
+
+
+def _is_immutable_file(path: str, url: str) -> bool:
+    """Content-hashed files never change, so browsers may cache them forever.
+
+    Matches Vite output (`/assets/index-DtaNHwhb.js`) and Django's manifest storage
+    (`app.3f2a1b9c0d4e.css`). index.html is not matched and is always revalidated.
+    """
+    return bool(re.search(r"^/assets/.+-[\w-]{8}\.\w+$|\.[0-9a-f]{12}\.\w+$", url))
+
+
+WHITENOISE_IMMUTABLE_FILE_TEST = _is_immutable_file
 
 # Uploaded originals and processed Parquet files.
 MEDIA_URL = "media/"
@@ -114,7 +140,31 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "EXCEPTION_HANDLER": "datasets.exception_handler.api_exception_handler",
     "UNAUTHENTICATED_USER": None,
+    # Per-IP limits on the expensive endpoints (LLM calls cost money, uploads use disk).
+    "DEFAULT_THROTTLE_RATES": {
+        "preview": os.getenv("THROTTLE_PREVIEW", "60/hour"),
+        "upload": os.getenv("THROTTLE_UPLOAD", "30/hour"),
+    },
+    # Number of reverse proxies in front of Django (Caddy = 1). Used to read the real
+    # client IP from X-Forwarded-For without trusting client-supplied values.
+    "NUM_PROXIES": int(os.getenv("NUM_PROXIES", "0")),
 }
+
+# Throttle counters live in the cache. In production use the database so every gunicorn
+# worker shares the same counts; in-process memory is fine for development and tests.
+CACHES = {
+    "default": (
+        {"BACKEND": "django.core.cache.backends.db.DatabaseCache", "LOCATION": "django_cache"}
+        if os.getenv("CACHE_BACKEND") == "database"
+        else {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
+    )
+}
+
+if not DEBUG:
+    # TLS is terminated by the reverse proxy (Caddy), which sets X-Forwarded-Proto.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # Application limits.
 MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))

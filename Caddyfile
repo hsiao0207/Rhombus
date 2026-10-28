@@ -1,0 +1,10 @@
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# Slightly above the app's 50 MB upload limit so Django can return a proper error.
+	request_body {
+		max_size 60MB
+	}
+
+	reverse_proxy app:8000
+}

@@ -3,8 +3,9 @@ HTTP layer: validate input, call a service, serialize the result.
 Business logic lives in `datasets.services`.
 """
 
+from django.db import connection
 from rest_framework import mixins, status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
 
@@ -18,11 +19,24 @@ from datasets.serializers import (
     TransformationSerializer,
 )
 from datasets.services import dataset_service, transformation_service
+from datasets.throttles import PreviewThrottle, UploadThrottle
+
+
+@api_view(["GET"])
+def health(request: Request) -> Response:
+    """Liveness check for the container orchestrator; also verifies the database."""
+    connection.ensure_connection()
+    return Response({"status": "ok"})
 
 
 class DatasetViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Dataset.objects.select_related("current_version__parent")
     serializer_class = DatasetSerializer
+
+    def get_throttles(self):
+        if self.action == "create":
+            return [UploadThrottle()]
+        return super().get_throttles()
 
     def create(self, request: Request) -> Response:
         upload = DatasetUploadSerializer(data=request.data)
@@ -37,7 +51,12 @@ class DatasetViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
         data = dataset_service.get_rows(self.get_object(), **query.validated_data)
         return Response(data)
 
-    @action(detail=True, methods=["post"], url_path="transformations/preview")
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="transformations/preview",
+        throttle_classes=[PreviewThrottle],
+    )
     def preview_transformation(self, request: Request, pk=None) -> Response:
         params = PreviewRequestSerializer(data=request.data)
         params.is_valid(raise_exception=True)

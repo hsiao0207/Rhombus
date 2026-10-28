@@ -2,6 +2,7 @@ import io
 
 import pandas as pd
 import pytest
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
 
@@ -17,6 +18,12 @@ SAMPLE_CSV = (
 def media_root(settings, tmp_path):
     settings.MEDIA_ROOT = tmp_path
     return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def clear_cache():
+    # Throttle counters live in the cache; start every test with a clean slate.
+    cache.clear()
 
 
 @pytest.fixture
