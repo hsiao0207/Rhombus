@@ -8,13 +8,20 @@ from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from datasets.models import Dataset
-from datasets.serializers import DatasetSerializer, DatasetUploadSerializer, RowsQuerySerializer
-from datasets.services import dataset_service
+from datasets.models import Dataset, Transformation
+from datasets.serializers import (
+    CellChangeSerializer,
+    DatasetSerializer,
+    DatasetUploadSerializer,
+    PreviewRequestSerializer,
+    RowsQuerySerializer,
+    TransformationSerializer,
+)
+from datasets.services import dataset_service, transformation_service
 
 
 class DatasetViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    queryset = Dataset.objects.select_related("current_version")
+    queryset = Dataset.objects.select_related("current_version__parent")
     serializer_class = DatasetSerializer
 
     def create(self, request: Request) -> Response:
@@ -29,3 +36,34 @@ class DatasetViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
         query.is_valid(raise_exception=True)
         data = dataset_service.get_rows(self.get_object(), **query.validated_data)
         return Response(data)
+
+    @action(detail=True, methods=["post"], url_path="transformations/preview")
+    def preview_transformation(self, request: Request, pk=None) -> Response:
+        params = PreviewRequestSerializer(data=request.data)
+        params.is_valid(raise_exception=True)
+        result = transformation_service.preview(self.get_object(), **params.validated_data)
+        return Response(
+            {
+                "transformation": TransformationSerializer(result.transformation).data,
+                "samples": CellChangeSerializer(result.samples, many=True).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class TransformationViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    queryset = Transformation.objects.select_related("source_version", "result_version")
+    serializer_class = TransformationSerializer
+
+    @action(detail=True, methods=["post"])
+    def apply(self, request: Request, pk=None) -> Response:
+        transformation = transformation_service.apply(self.get_object())
+        dataset = Dataset.objects.select_related("current_version").get(
+            pk=transformation.dataset_id
+        )
+        return Response(
+            {
+                "transformation": TransformationSerializer(transformation).data,
+                "dataset": DatasetSerializer(dataset).data,
+            }
+        )

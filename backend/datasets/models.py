@@ -69,3 +69,38 @@ class DatasetVersion(models.Model):
 
     def __str__(self) -> str:
         return f"{self.dataset} v{self.version_no}"
+
+
+class Transformation(models.Model):
+    """
+    One find-and-replace operation. It is created when the user previews it and becomes
+    `applied` once the result has been stored as a new dataset version.
+    """
+
+    class Status(models.TextChoices):
+        PREVIEWED = "previewed", "Previewed"
+        APPLIED = "applied", "Applied"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    dataset = models.ForeignKey(Dataset, on_delete=models.CASCADE, related_name="transformations")
+    source_version = models.ForeignKey(DatasetVersion, on_delete=models.CASCADE, related_name="+")
+    result_version = models.ForeignKey(
+        DatasetVersion, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    # The user's natural-language request (empty when the pattern was entered by hand).
+    instruction = models.TextField(blank=True)
+    pattern = models.TextField()
+    flags = models.JSONField(default=list)
+    replacement = models.TextField(blank=True)
+    columns = models.JSONField()
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PREVIEWED)
+    # Shape: see regex_engine.ReplaceResult.stats
+    stats = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    applied_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.pattern!r} -> {self.replacement!r} ({self.status})"

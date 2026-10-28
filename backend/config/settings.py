@@ -112,7 +112,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
-    "EXCEPTION_HANDLER": "datasets.exceptions.api_exception_handler",
+    "EXCEPTION_HANDLER": "datasets.exception_handler.api_exception_handler",
     "UNAUTHENTICATED_USER": None,
 }
 
@@ -121,6 +121,11 @@ MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 500
+MAX_PATTERN_LENGTH = 1000
+MAX_REPLACEMENT_LENGTH = 1000
+# Total time budget for running one pattern over a dataset (guards against ReDoS).
+REGEX_TIMEOUT_SECONDS = float(os.getenv("REGEX_TIMEOUT_SECONDS", "5"))
+PREVIEW_SAMPLE_SIZE = 20
 
 LOGGING = {
     "version": 1,

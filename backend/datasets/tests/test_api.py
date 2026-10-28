@@ -105,6 +105,7 @@ def test_rows_are_paginated(api_client, csv_file):
         "total_pages": 2,
         "columns": ["ID", "Name", "Email"],
         "rows": [["3", "Alice Brown", "alice.brown@website.org"]],
+        "changed": [],
     }
 
 

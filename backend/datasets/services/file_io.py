@@ -110,6 +110,12 @@ def save_parquet(df: pd.DataFrame, path: str) -> str:
     return default_storage.save(path, ContentFile(buffer.getvalue()))
 
 
+def read_dataframe(path: str) -> pd.DataFrame:
+    """Load a stored Parquet file as a DataFrame."""
+    with default_storage.open(path, "rb") as file:
+        return pq.read_table(file).to_pandas()
+
+
 def read_page(path: str, offset: int, limit: int) -> Page:
     """Read a slice of rows from a stored Parquet file."""
     with default_storage.open(path, "rb") as file:
