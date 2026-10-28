@@ -38,13 +38,28 @@ class DatasetSerializer(serializers.ModelSerializer):
 
 
 class PreviewRequestSerializer(serializers.Serializer):
+    """Either `instruction` (natural language, sent to the LLM) or `pattern` is required.
+
+    `replacement` and `columns` are optional: when omitted with an instruction, they are
+    inferred from it. `flags` only applies to hand-written patterns.
+    """
+
+    instruction = serializers.CharField(
+        max_length=settings.MAX_INSTRUCTION_LENGTH, required=False, allow_blank=True
+    )
     # Whitespace is meaningful in patterns and replacements, so never trim it.
-    pattern = serializers.CharField(max_length=settings.MAX_PATTERN_LENGTH, trim_whitespace=False)
-    replacement = serializers.CharField(
-        max_length=settings.MAX_REPLACEMENT_LENGTH,
+    pattern = serializers.CharField(
+        max_length=settings.MAX_PATTERN_LENGTH,
+        required=False,
         allow_blank=True,
         trim_whitespace=False,
-        default="",
+    )
+    replacement = serializers.CharField(
+        max_length=settings.MAX_REPLACEMENT_LENGTH,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        trim_whitespace=False,
     )
     columns = serializers.ListField(
         child=serializers.CharField(), required=False, allow_empty=False
@@ -52,6 +67,11 @@ class PreviewRequestSerializer(serializers.Serializer):
     flags = serializers.ListField(
         child=serializers.ChoiceField(choices=sorted(FLAGS)), required=False, default=list
     )
+
+    def validate(self, attrs):
+        if not attrs.get("instruction") and not attrs.get("pattern"):
+            raise serializers.ValidationError("Provide either an instruction or a pattern.")
+        return attrs
 
 
 class CellChangeSerializer(serializers.Serializer):
@@ -74,6 +94,7 @@ class TransformationSerializer(serializers.ModelSerializer):
             "dataset",
             "status",
             "instruction",
+            "explanation",
             "pattern",
             "flags",
             "replacement",

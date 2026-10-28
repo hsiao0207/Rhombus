@@ -41,7 +41,24 @@ class DatasetViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     def preview_transformation(self, request: Request, pk=None) -> Response:
         params = PreviewRequestSerializer(data=request.data)
         params.is_valid(raise_exception=True)
-        result = transformation_service.preview(self.get_object(), **params.validated_data)
+        data = params.validated_data
+        dataset = self.get_object()
+        if data.get("pattern"):
+            result = transformation_service.preview(
+                dataset,
+                pattern=data["pattern"],
+                replacement=data.get("replacement") or "",
+                flags=data["flags"],
+                columns=data.get("columns"),
+                instruction=data.get("instruction", ""),
+            )
+        else:
+            result = transformation_service.preview_from_instruction(
+                dataset,
+                instruction=data["instruction"],
+                replacement=data.get("replacement"),
+                columns=data.get("columns"),
+            )
         return Response(
             {
                 "transformation": TransformationSerializer(result.transformation).data,

@@ -89,6 +89,8 @@ class Transformation(models.Model):
     )
     # The user's natural-language request (empty when the pattern was entered by hand).
     instruction = models.TextField(blank=True)
+    # The LLM's plain-language description of the pattern (empty for hand-written ones).
+    explanation = models.TextField(blank=True)
     pattern = models.TextField()
     flags = models.JSONField(default=list)
     replacement = models.TextField(blank=True)

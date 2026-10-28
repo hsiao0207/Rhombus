@@ -126,6 +126,16 @@ MAX_REPLACEMENT_LENGTH = 1000
 # Total time budget for running one pattern over a dataset (guards against ReDoS).
 REGEX_TIMEOUT_SECONDS = float(os.getenv("REGEX_TIMEOUT_SECONDS", "5"))
 PREVIEW_SAMPLE_SIZE = 20
+MAX_INSTRUCTION_LENGTH = 1000
+
+# LLM (Claude). The Anthropic SDK reads ANTHROPIC_API_KEY from the environment.
+LLM_MODEL = os.getenv("LLM_MODEL", "claude-opus-5-5")
+LLM_EFFORT = os.getenv("LLM_EFFORT", "medium")  # low | medium | high | xhigh | max
+LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "60"))
+# Attempts per request, including self-correction retries after an unusable pattern.
+LLM_MAX_ATTEMPTS = int(os.getenv("LLM_MAX_ATTEMPTS", "2"))
+# Distinct example values per column sent to the LLM as context.
+LLM_SAMPLE_VALUES = 5
 
 LOGGING = {
     "version": 1,

@@ -85,3 +85,36 @@ class TransformationConflict(DomainError):
     def __init__(self, code: str, message: str):
         self.code = code
         super().__init__(message)
+
+
+class PatternGenerationFailed(DomainError):
+    code = "PATTERN_GENERATION_FAILED"
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+    default_message = (
+        "Could not turn the description into a working pattern. "
+        "Try describing it differently or enter a regex manually."
+    )
+
+
+class LLMNotConfigured(DomainError):
+    code = "LLM_NOT_CONFIGURED"
+    status_code = HTTPStatus.SERVICE_UNAVAILABLE
+    default_message = "The language model is not configured on the server."
+
+
+class LLMUnavailable(DomainError):
+    code = "LLM_UNAVAILABLE"
+    status_code = HTTPStatus.SERVICE_UNAVAILABLE
+    default_message = "The language model is temporarily unavailable. Please try again."
+
+
+class LLMRefused(DomainError):
+    code = "LLM_REFUSED"
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+    default_message = "The language model declined this request. Try rephrasing it."
+
+
+class LLMBadOutput(DomainError):
+    code = "LLM_BAD_OUTPUT"
+    status_code = HTTPStatus.BAD_GATEWAY
+    default_message = "The language model returned an unusable response. Please try again."
