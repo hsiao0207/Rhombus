@@ -123,6 +123,9 @@ def _is_immutable_file(path: str, url: str) -> bool:
 
 
 WHITENOISE_IMMUTABLE_FILE_TEST = _is_immutable_file
+# Everything else (index.html, favicon) is revalidated on every load, so a new deploy is
+# picked up immediately instead of serving a stale index.html that references old assets.
+WHITENOISE_MAX_AGE = 0
 
 # Uploaded originals and processed Parquet files.
 MEDIA_URL = "media/"
