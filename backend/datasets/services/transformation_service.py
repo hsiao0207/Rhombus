@@ -145,9 +145,9 @@ def generate_pattern(
         except PATTERN_ERRORS as exc:
             problem = exc.message
         else:
-            # Zero matches may be legitimate, but is more often a wrong guess about the
-            # data format, so it is worth one more try while attempts remain.
-            if result.stats["total_matches"] > 0 or attempt == max_attempts:
+            # A result that changes nothing may be legitimate, but more often means a wrong
+            # guess about the data format or the request, so retry while attempts remain.
+            if result.stats["total_cells_changed"] > 0 or attempt == max_attempts:
                 return GeneratedPattern(
                     suggestion=suggestion,
                     replacement=final_replacement,
@@ -155,10 +155,19 @@ def generate_pattern(
                     result=result,
                     attempts=attempt,
                 )
-            problem = (
-                "The pattern matched nothing in the selected columns. Compare it with the "
-                "sample values and adjust it to the formats actually present in the data."
-            )
+            if result.stats["total_matches"] == 0:
+                problem = (
+                    "The pattern matched nothing in the selected columns. Compare it with "
+                    "the sample values and adjust it to the formats actually present in the "
+                    "data."
+                )
+            else:
+                problem = (
+                    f"The pattern matched {result.stats['total_matches']} time(s), but the "
+                    "replacement produces exactly the same text, so nothing would change. "
+                    "Re-read the request and reconsider what the user wants the matches "
+                    "replaced with."
+                )
 
         logger.info("LLM attempt %d/%d rejected: %s", attempt, max_attempts, problem)
         request = replace(request, previous=suggestion, feedback=problem)

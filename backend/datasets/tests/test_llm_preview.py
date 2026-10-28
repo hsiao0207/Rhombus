@@ -143,6 +143,16 @@ def test_zero_matches_triggers_one_retry(api_client, dataset_id, fake_llm):
     assert "matched nothing" in generator.requests[1].feedback
 
 
+def test_no_op_replacement_triggers_one_retry(api_client, dataset_id, fake_llm):
+    # Matches every email but "replaces" it with itself, so nothing would change.
+    generator = fake_llm(suggestion(pattern=r"(\S+@\S+)", replacement=r"\1"), suggestion())
+
+    body = preview(api_client, dataset_id, instruction=SPEC_INSTRUCTION).json()
+
+    assert body["transformation"]["stats"]["total_cells_changed"] == 3
+    assert "nothing would change" in generator.requests[1].feedback
+
+
 def test_zero_matches_on_last_attempt_is_returned(api_client, dataset_id, fake_llm, settings):
     settings.LLM_MAX_ATTEMPTS = 1
     fake_llm(suggestion(pattern="zzz"))
