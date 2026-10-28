@@ -1,0 +1,36 @@
+[project]
+name = "rhombus-backend"
+version = "0.1.0"
+description = "Django API for natural-language regex matching and replacement on tabular data"
+requires-python = ">=3.12"
+dependencies = [
+    "dj-database-url>=3.1.2",
+    "django>=5.2,<5.3",
+    "djangorestframework>=3.17.2",
+    "openpyxl>=3.1.5",
+    "pandas>=3.1.0",
+    "pyarrow>=26.0.0",
+    "python-dotenv>=1.2.4",
+    "regex>=2026.9.29",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-django>=4.14.0",
+    "ruff>=0.17.3",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "DJ"]
