@@ -10,18 +10,10 @@ interface PreviewResultProps {
   applying: boolean
   applyError: unknown
   onApply: () => void
-  onEditRegex: () => void
   onDiscard: () => void
 }
 
-export function PreviewResult({
-  preview,
-  applying,
-  applyError,
-  onApply,
-  onEditRegex,
-  onDiscard,
-}: PreviewResultProps) {
+export function PreviewResult({ preview, applying, applyError, onApply, onDiscard }: PreviewResultProps) {
   const { transformation, samples } = preview
   const { stats } = transformation
   const nothingChanges = stats.total_cells_changed === 0
@@ -72,7 +64,7 @@ export function PreviewResult({
 
       {nothingChanges ? (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Nothing would change. Try describing the pattern differently, or edit the regex.
+          Nothing would change. Try describing the pattern differently.
         </p>
       ) : (
         <div className="max-h-64 overflow-auto rounded-lg border border-slate-200">
@@ -115,13 +107,6 @@ export function PreviewResult({
           className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
         >
           Discard
-        </button>
-        <button
-          type="button"
-          onClick={onEditRegex}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-        >
-          Edit regex
         </button>
         <button
           type="button"
