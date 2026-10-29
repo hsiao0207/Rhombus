@@ -1,3 +1,10 @@
+"""
+Request validation and response shapes for the API.
+
+Input serializers check request bodies and query parameters; output serializers define
+the JSON the views return. Business rules live in `datasets.services`, not here.
+"""
+
 from django.conf import settings
 from rest_framework import serializers
 

@@ -1,3 +1,8 @@
+"""
+Unit tests for the regex engine: replacement semantics, statistics, and rejection of
+invalid, empty-matching or catastrophically slow patterns.
+"""
+
 import pandas as pd
 import pytest
 

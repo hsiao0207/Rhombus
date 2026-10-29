@@ -1,3 +1,10 @@
+"""
+LLM integration for turning natural language into regex.
+
+Callers use `get_regex_generator()` and the types re-exported here, never a provider
+module directly, so the provider can be swapped and tests can substitute a fake.
+"""
+
 import functools
 import os
 

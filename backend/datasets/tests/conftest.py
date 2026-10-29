@@ -1,3 +1,5 @@
+"""Shared fixtures: isolated media storage, a clean cache, an API client and sample files."""
+
 import io
 
 import pandas as pd

@@ -1,3 +1,5 @@
+// Main screen for an open dataset: file summary, transform panel and data table.
+
 import { useState } from 'react'
 import { useDataset, useRows } from '../hooks/datasets'
 import { formatBytes, plural } from '../lib/format'

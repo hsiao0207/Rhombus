@@ -1,3 +1,6 @@
+// A preview awaiting confirmation: the generated regex and its explanation, match
+// statistics and before/after samples, plus the Apply button.
+
 import type { PreviewResponse } from '../api/types'
 import { plural } from '../lib/format'
 import { ErrorMessage } from './ErrorMessage'

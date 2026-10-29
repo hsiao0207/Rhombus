@@ -1,3 +1,6 @@
+// File upload by drag-and-drop or file picker, with client-side checks and a built-in
+// sample file to try the app without one.
+
 import { useRef, useState, type DragEvent } from 'react'
 import { ApiError } from '../api/client'
 import type { Dataset } from '../api/types'

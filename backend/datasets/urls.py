@@ -1,3 +1,15 @@
+"""
+API routes, mounted under `/api/`.
+
+    GET  health/                                  liveness check
+    POST datasets/                                upload a CSV or Excel file
+    GET  datasets/{id}/                           dataset metadata and current version
+    GET  datasets/{id}/rows/                      paginated rows with changed cells
+    POST datasets/{id}/transformations/preview/   preview a find-and-replace
+    GET  transformations/{id}/                    a previewed or applied transformation
+    POST transformations/{id}/apply/              apply a preview as a new version
+"""
+
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 

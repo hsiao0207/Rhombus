@@ -1,3 +1,6 @@
+// TanStack Query hooks for the API: caching, loading state, and refreshing the table
+// after a transformation is applied.
+
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   applyTransformation,

@@ -1,3 +1,6 @@
+// Form for describing a change in plain English (or as a regex), choosing columns,
+// previewing it and applying it.
+
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
 import type { Dataset, PreviewRequest, Transformation } from '../api/types'
 import { useApply, usePreview } from '../hooks/datasets'

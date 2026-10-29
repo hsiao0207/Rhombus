@@ -1,3 +1,5 @@
+"""Tests for operational safeguards: the health check and upload rate limiting."""
+
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 

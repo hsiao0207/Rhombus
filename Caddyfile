@@ -1,3 +1,6 @@
+# Reverse proxy in front of the app: automatic HTTPS for SITE_ADDRESS, compression
+# and a request size cap.
+
 {$SITE_ADDRESS} {
 	encode zstd gzip
 

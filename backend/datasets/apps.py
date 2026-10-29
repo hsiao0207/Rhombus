@@ -1,3 +1,5 @@
+"""Django app for uploaded datasets, their versions and find-and-replace transformations."""
+
 from django.apps import AppConfig
 
 

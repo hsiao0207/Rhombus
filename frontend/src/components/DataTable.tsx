@@ -1,3 +1,6 @@
+// Paginated table of the current dataset version. Cells changed by the latest apply
+// are highlighted.
+
 import type { ColumnInfo, RowsPage } from '../api/types'
 import { formatCount } from '../lib/format'
 

@@ -1,3 +1,5 @@
+// Top-level page: the upload screen, or the workspace for the dataset in the URL.
+
 import { useState } from 'react'
 import { FileUpload } from './components/FileUpload'
 import { Workspace } from './components/Workspace'

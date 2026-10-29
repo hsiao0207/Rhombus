@@ -1,3 +1,8 @@
+"""
+Unit tests for `ClaudeRegexGenerator` using a fake Anthropic client (no network calls):
+request contents, refusal and unusable-output handling, and API error mapping.
+"""
+
 from types import SimpleNamespace
 
 import anthropic

@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1
 
+# One image with the Django API and the built React app, which Django serves via
+# WhiteNoise. Used by docker-compose.yml.
+
 # ---- Stage 1: build the React app --------------------------------------------------
 FROM node:22-alpine AS frontend
 WORKDIR /frontend

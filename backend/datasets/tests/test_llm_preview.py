@@ -1,3 +1,8 @@
+"""
+API tests for natural-language previews with a fake LLM: user overrides, defaults and
+the self-correction retry loop.
+"""
+
 import pytest
 
 from datasets.services import llm

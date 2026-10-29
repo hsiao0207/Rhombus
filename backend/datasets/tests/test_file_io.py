@@ -1,3 +1,5 @@
+"""Unit tests for file parsing, column normalization, kind inference and Parquet storage."""
+
 import io
 
 import pandas as pd

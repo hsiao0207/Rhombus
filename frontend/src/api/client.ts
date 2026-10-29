@@ -1,3 +1,6 @@
+// Low-level fetch wrapper for the Django API. Every failure is thrown as an ApiError:
+// backend errors keep their code and message, network failures get status 0.
+
 import type { ApiErrorBody } from './types'
 
 /** An error returned by the backend in its standard `{"error": {...}}` shape. */

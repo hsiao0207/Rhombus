@@ -1,3 +1,5 @@
+// Formatting helpers for counts, plurals and file sizes.
+
 const integer = new Intl.NumberFormat('en-US')
 
 export function formatCount(value: number): string {

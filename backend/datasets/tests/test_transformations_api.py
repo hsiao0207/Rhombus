@@ -1,3 +1,8 @@
+"""
+API tests for the preview/apply flow with explicit regexes: versioning, change
+highlighting, chaining and conflict detection.
+"""
+
 import pytest
 
 from datasets.models import Transformation

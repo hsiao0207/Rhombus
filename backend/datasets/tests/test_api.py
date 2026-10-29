@@ -1,3 +1,5 @@
+"""API tests for uploading datasets and reading paginated rows."""
+
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 

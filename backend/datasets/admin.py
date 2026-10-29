@@ -1,3 +1,5 @@
+"""Django admin pages for inspecting datasets, their versions and transformations."""
+
 from django.contrib import admin
 
 from datasets.models import Dataset, DatasetVersion, Transformation

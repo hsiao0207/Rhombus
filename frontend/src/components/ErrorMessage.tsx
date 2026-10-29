@@ -1,3 +1,5 @@
+// Shows an API or network error with a short headline per error code.
+
 import { ApiError } from '../api/client'
 
 // Short headlines per backend error code; the server's message supplies the details.

@@ -1,3 +1,5 @@
+// One typed function per backend endpoint (see backend/datasets/urls.py).
+
 import { postJson, request } from './client'
 import type { ApplyResponse, Dataset, PreviewRequest, PreviewResponse, RowsPage } from './types'
 

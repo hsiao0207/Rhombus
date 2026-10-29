@@ -1,3 +1,5 @@
+// Vite config: React, Tailwind CSS, and a dev-server proxy that forwards /api to Django.
+
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
