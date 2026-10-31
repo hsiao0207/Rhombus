@@ -26,6 +26,10 @@ export function ClassificationResult({
   const { transformation, samples } = preview
   const { params, stats } = transformation
   const emptyRows = stats.total_rows - stats.rows_classified
+  // Ordered from params, a list: object key order is not preserved by the database.
+  const categories = [...params.categories, 'Unclassified'].filter(
+    (category) => category in stats.categories,
+  )
 
   return (
     <section aria-label="Preview" className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
@@ -48,7 +52,8 @@ export function ClassificationResult({
           Categories
         </h3>
         <ul className="space-y-1.5">
-          {Object.entries(stats.categories).map(([category, rows]) => {
+          {categories.map((category) => {
+            const rows = stats.categories[category]
             const share = stats.rows_classified ? rows / stats.rows_classified : 0
             return (
               <li key={category} className="text-sm">
