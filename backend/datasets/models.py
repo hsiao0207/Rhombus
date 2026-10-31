@@ -4,6 +4,8 @@ Data model.
 A `Dataset` is one uploaded file. Its contents live in immutable `DatasetVersion`s:
 version 1 is the parsed upload, and every applied transformation produces a new version.
 Never mutating data in place makes undo and before/after comparison straightforward.
+The uploaded file itself is not kept, since version 1 holds all of its data, and
+datasets are deleted after `DATASET_RETENTION_HOURS` (see `cleanup_datasets`).
 """
 
 import uuid
@@ -11,6 +13,7 @@ import uuid
 from django.db import models
 
 
+# No longer used (the uploaded file itself is not kept), but migration 0001 refers to it.
 def original_upload_path(instance: "Dataset", filename: str) -> str:
     return f"datasets/{instance.id}/original/{filename}"
 
@@ -28,7 +31,6 @@ class Dataset(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     original_name = models.CharField(max_length=255)
     file_format = models.CharField(max_length=8, choices=FileFormat.choices)
-    original_file = models.FileField(upload_to=original_upload_path)
     file_size = models.PositiveBigIntegerField()
     current_version = models.ForeignKey(
         "DatasetVersion",

@@ -177,6 +177,9 @@ MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 # CSV is parsed in batches, but Excel files are loaded whole, so they get a lower limit.
 MAX_EXCEL_UPLOAD_SIZE_MB = int(os.getenv("MAX_EXCEL_UPLOAD_SIZE_MB", "50"))
 MAX_EXCEL_UPLOAD_SIZE_BYTES = MAX_EXCEL_UPLOAD_SIZE_MB * 1024 * 1024
+# Datasets (rows, versions and their files) are deleted this long after upload by the
+# `cleanup_datasets` command, which docker-compose runs every hour.
+DATASET_RETENTION_HOURS = int(os.getenv("DATASET_RETENTION_HOURS", "24"))
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 500
 MAX_PATTERN_LENGTH = 1000

@@ -11,6 +11,8 @@ import { ErrorMessage } from './ErrorMessage'
 const ACCEPTED_EXTENSIONS = ['.csv', '.xlsx']
 const MAX_UPLOAD_MB = 200
 const MAX_EXCEL_UPLOAD_MB = 50
+// DATASET_RETENTION_HOURS: uploads are deleted this long after upload.
+const RETENTION_HOURS = 24
 
 const SAMPLE_CSV = `ID,Name,Email,Phone,Notes
 1,John Doe,john.doe@example.com,0912-345-678,Call me at 0912-345-678 or email john.doe@example.com
@@ -89,7 +91,8 @@ export function FileUpload({ onUploaded }: { onUploaded: (dataset: Dataset) => v
           {upload.isPending ? 'Uploading…' : 'Drop a CSV or Excel file here, or click to browse'}
         </p>
         <p className="mt-1 text-sm text-slate-500">
-          .csv up to {MAX_UPLOAD_MB} MB, .xlsx up to {MAX_EXCEL_UPLOAD_MB} MB
+          .csv up to {MAX_UPLOAD_MB} MB, .xlsx up to {MAX_EXCEL_UPLOAD_MB} MB · deleted after{' '}
+          {RETENTION_HOURS} hours
         </p>
       </div>
 

@@ -19,6 +19,7 @@ Design notes:
 import tempfile
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import PurePath
 from typing import IO
 
@@ -229,3 +230,43 @@ def read_page(path: str, offset: int, limit: int) -> Page:
     page = table.slice(max(offset - first_row, 0), limit).to_pandas()
     rows = page.astype(object).where(page.notna(), None).values.tolist()
     return Page(columns=list(table.column_names), rows=rows, total_rows=total_rows)
+
+
+def list_dirs(prefix: str) -> list[str]:
+    """Names of the "directories" directly under `prefix` in storage."""
+    try:
+        dirs, _ = default_storage.listdir(prefix)
+    except FileNotFoundError:
+        return []
+    return dirs
+
+
+def delete_tree(prefix: str) -> None:
+    """Delete every stored file under `prefix`, then its (now empty) directories."""
+    try:
+        dirs, files = default_storage.listdir(prefix)
+    except FileNotFoundError:
+        return
+    for name in files:
+        default_storage.delete(f"{prefix}/{name}")
+    for name in dirs:
+        delete_tree(f"{prefix}/{name}")
+    # Removes the empty directory on local disk; object stores have no directories.
+    default_storage.delete(prefix)
+
+
+def latest_modified(prefix: str) -> datetime | None:
+    """When the most recently changed file under `prefix` was written, if any."""
+    times = [default_storage.get_modified_time(path) for path in _walk_files(prefix)]
+    return max(times, default=None)
+
+
+def _walk_files(prefix: str) -> Iterator[str]:
+    try:
+        dirs, files = default_storage.listdir(prefix)
+    except FileNotFoundError:
+        return
+    for name in files:
+        yield f"{prefix}/{name}"
+    for name in dirs:
+        yield from _walk_files(f"{prefix}/{name}")

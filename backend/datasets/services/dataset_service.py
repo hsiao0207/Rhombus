@@ -1,5 +1,6 @@
 """
-Use cases for datasets: creating one from an upload, adding versions and reading rows.
+Use cases for datasets: creating one from an upload, adding versions, reading rows and
+deleting expired datasets.
 
 Views stay thin and delegate here; this module orchestrates validation, parsing,
 storage and persistence, while `file_io` handles the raw file formats.
@@ -7,11 +8,13 @@ storage and persistence, while `file_io` handles the raw file formats.
 
 import logging
 import math
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.db.models import Max
+from django.utils import timezone
 
 from datasets.exceptions import FileTooLarge
 from datasets.models import Dataset, DatasetVersion
@@ -39,13 +42,12 @@ def create_dataset(upload: UploadedFile) -> Dataset:
         )
 
     # The id exists before saving, so the parsed data can be written to its final path
-    # first; a file that fails to parse then leaves nothing in the database.
+    # first; a file that fails to parse then leaves nothing in the database. The upload
+    # itself is not kept: version 1 holds all of its data.
     dataset = Dataset(original_name=upload.name, file_format=file_format, file_size=upload.size)
     table = file_io.store_upload(upload, file_format, version_path(dataset, 1))
 
     with transaction.atomic():
-        upload.seek(0)
-        dataset.original_file.save(upload.name, upload, save=False)
         dataset.save()
         add_version(dataset, 1, table, parent=None)
 
@@ -63,8 +65,47 @@ def next_version_no(dataset: Dataset) -> int:
     return (dataset.versions.aggregate(latest=Max("version_no"))["latest"] or 0) + 1
 
 
+DATASETS_DIR = "datasets"
+
+
+def dataset_dir(dataset_id) -> str:
+    """Storage "directory" holding every file of one dataset."""
+    return f"{DATASETS_DIR}/{dataset_id}"
+
+
 def version_path(dataset: Dataset, version_no: int) -> str:
-    return f"datasets/{dataset.id}/versions/v{version_no}.parquet"
+    return f"{dataset_dir(dataset.id)}/versions/v{version_no}.parquet"
+
+
+def delete_expired_datasets(*, older_than: timedelta) -> tuple[int, int]:
+    """Delete datasets uploaded more than `older_than` ago, with their files.
+
+    Also removes leftover dataset directories that no row refers to (for example from
+    an upload that failed after its data was written), once their files are equally
+    old, so uploads still in progress are never touched. Returns how many datasets and
+    leftover directories were removed.
+    """
+    cutoff = timezone.now() - older_than
+    expired = list(Dataset.objects.filter(created_at__lt=cutoff).values_list("id", flat=True))
+    for dataset_id in expired:
+        # Rows first: if deleting files then fails, what remains is unreferenced files,
+        # which the sweep below removes later, never a row pointing at missing data.
+        Dataset.objects.filter(pk=dataset_id).delete()
+        file_io.delete_tree(dataset_dir(dataset_id))
+
+    existing = {str(pk) for pk in Dataset.objects.values_list("id", flat=True)}
+    leftovers = 0
+    for name in file_io.list_dirs(DATASETS_DIR):
+        if name in existing:
+            continue
+        modified = file_io.latest_modified(dataset_dir(name))
+        if modified is None or modified < cutoff:
+            file_io.delete_tree(dataset_dir(name))
+            leftovers += 1
+
+    if expired or leftovers:
+        logger.info("Deleted %d expired datasets and %d leftover dirs", len(expired), leftovers)
+    return len(expired), leftovers
 
 
 def add_version(

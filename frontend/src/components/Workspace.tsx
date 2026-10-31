@@ -1,6 +1,7 @@
 // Main screen for an open dataset: file summary, transform panel and data table.
 
 import { useState } from 'react'
+import { ApiError } from '../api/client'
 import { useDataset, useRows } from '../hooks/datasets'
 import { formatBytes, plural } from '../lib/format'
 import { DataTable } from './DataTable'
@@ -22,9 +23,16 @@ export function Workspace({ datasetId, onNewFile }: WorkspaceProps) {
     return <p className="py-16 text-center text-sm text-slate-500">Loading dataset…</p>
   }
   if (dataset.isError) {
+    const expired = dataset.error instanceof ApiError && dataset.error.status === 404
     return (
       <div className="mx-auto max-w-md space-y-4 py-16">
-        <ErrorMessage error={dataset.error} />
+        {expired ? (
+          <p className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+            This file is no longer available. Uploaded files are deleted after a day.
+          </p>
+        ) : (
+          <ErrorMessage error={dataset.error} />
+        )}
         <button
           type="button"
           onClick={onNewFile}
