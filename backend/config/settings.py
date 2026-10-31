@@ -170,14 +170,25 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
 
 # Application limits.
-MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))
+MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "200"))
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+# CSV is parsed in batches, but Excel files are loaded whole, so they get a lower limit.
+MAX_EXCEL_UPLOAD_SIZE_MB = int(os.getenv("MAX_EXCEL_UPLOAD_SIZE_MB", "50"))
+MAX_EXCEL_UPLOAD_SIZE_BYTES = MAX_EXCEL_UPLOAD_SIZE_MB * 1024 * 1024
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 500
 MAX_PATTERN_LENGTH = 1000
 MAX_REPLACEMENT_LENGTH = 1000
-# Total time budget for running one pattern over a dataset (guards against ReDoS).
+# Time limits for running a pattern (ReDoS protection). Every cell gets at most
+# REGEX_CELL_TIMEOUT_SECONDS; a preview, which only scans the first PREVIEW_ROW_LIMIT
+# rows, gets REGEX_TIMEOUT_SECONDS in total; an apply runs over every row and gets
+# REGEX_APPLY_TIMEOUT_SECONDS, which must stay below gunicorn's request timeout.
+REGEX_CELL_TIMEOUT_SECONDS = float(os.getenv("REGEX_CELL_TIMEOUT_SECONDS", "1"))
 REGEX_TIMEOUT_SECONDS = float(os.getenv("REGEX_TIMEOUT_SECONDS", "5"))
+REGEX_APPLY_TIMEOUT_SECONDS = float(os.getenv("REGEX_APPLY_TIMEOUT_SECONDS", "120"))
+# Previews run on the first rows only, so they stay fast on large files; their
+# statistics are then estimates, and the UI says so.
+PREVIEW_ROW_LIMIT = int(os.getenv("PREVIEW_ROW_LIMIT", "50000"))
 PREVIEW_SAMPLE_SIZE = 20
 MAX_INSTRUCTION_LENGTH = 1000
 

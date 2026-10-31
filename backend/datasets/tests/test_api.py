@@ -70,6 +70,17 @@ def test_upload_too_large(api_client, settings, csv_file):
     assert not Dataset.objects.exists()
 
 
+def test_excel_has_its_own_lower_size_limit(api_client, settings, csv_file, xlsx_file):
+    # Excel is parsed in one go rather than in batches, so it gets a separate limit.
+    settings.MAX_EXCEL_UPLOAD_SIZE_BYTES = 10
+
+    assert upload(api_client, csv_file).status_code == 201
+    response = upload(api_client, xlsx_file)
+
+    assert response.status_code == 413
+    assert "Save larger files as CSV" in response.json()["error"]["message"]
+
+
 def test_corrupt_xlsx_returns_parse_error(api_client):
     response = upload(api_client, SimpleUploadedFile("broken.xlsx", b"not a zip file"))
 

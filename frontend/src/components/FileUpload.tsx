@@ -9,7 +9,8 @@ import { ErrorMessage } from './ErrorMessage'
 
 // Mirrors the backend limits; the server re-validates everything.
 const ACCEPTED_EXTENSIONS = ['.csv', '.xlsx']
-const MAX_UPLOAD_MB = 50
+const MAX_UPLOAD_MB = 200
+const MAX_EXCEL_UPLOAD_MB = 50
 
 const SAMPLE_CSV = `ID,Name,Email,Phone,Notes
 1,John Doe,john.doe@example.com,0912-345-678,Call me at 0912-345-678 or email john.doe@example.com
@@ -24,6 +25,9 @@ function validate(file: File): string | null {
   }
   if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
     return `Files must be ${MAX_UPLOAD_MB} MB or smaller.`
+  }
+  if (name.endsWith('.xlsx') && file.size > MAX_EXCEL_UPLOAD_MB * 1024 * 1024) {
+    return `Excel files must be ${MAX_EXCEL_UPLOAD_MB} MB or smaller. Save larger files as CSV.`
   }
   if (file.size === 0) {
     return 'This file is empty.'
@@ -84,7 +88,9 @@ export function FileUpload({ onUploaded }: { onUploaded: (dataset: Dataset) => v
         <p className="text-base font-medium text-slate-900">
           {upload.isPending ? 'Uploading…' : 'Drop a CSV or Excel file here, or click to browse'}
         </p>
-        <p className="mt-1 text-sm text-slate-500">.csv or .xlsx, up to {MAX_UPLOAD_MB} MB</p>
+        <p className="mt-1 text-sm text-slate-500">
+          .csv up to {MAX_UPLOAD_MB} MB, .xlsx up to {MAX_EXCEL_UPLOAD_MB} MB
+        </p>
       </div>
 
       <div className="text-center text-sm text-slate-500">

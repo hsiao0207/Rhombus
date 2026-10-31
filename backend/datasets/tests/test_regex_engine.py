@@ -40,6 +40,7 @@ def test_redacts_emails_like_the_spec_example(people):
         "total_matches": 3,
         "total_cells_changed": 3,
         "rows_affected": 3,
+        "rows_scanned": 3,
         "columns": {"Email": {"matches": 3, "cells_changed": 3}},
     }
 
@@ -115,3 +116,23 @@ def test_catastrophic_backtracking_times_out():
     df = pd.DataFrame({"t": ["a" * 40 + "!"]})
     with pytest.raises(RegexTimeout):
         replace(df, r"(a|aa)+$", "", ["t"], timeout=0.1)
+
+
+def test_per_cell_limit_stops_catastrophic_backtracking_within_a_long_budget():
+    df = pd.DataFrame({"t": ["a" * 40 + "!"]})
+    with pytest.raises(RegexTimeout):
+        replace(df, r"(a|aa)+$", "", ["t"], timeout=600, cell_timeout_seconds=0.1)
+
+
+def test_batches_give_the_same_result_as_one_pass():
+    df = pd.DataFrame({"t": ["a1", "b", "c3", "a1", None, "d4", "e"]})
+    compiled = regex_engine.compile_pattern(r"\d")
+    replacer = regex_engine.Replacer(compiled, "#", ["t"], timeout_seconds=5, sample_size=3)
+
+    batches = [replacer.process(df.iloc[i : i + 3]) for i in range(0, len(df), 3)]
+
+    one_pass = replace(df, r"\d", "#", ["t"], sample_size=3)
+    pd.testing.assert_series_equal(pd.concat(batches)["t"], one_pass.data["t"])
+    assert replacer.result.stats == one_pass.stats
+    # Sample rows are numbered across the whole dataset, not within each batch.
+    assert [sample.row for sample in replacer.result.samples] == [0, 2, 3]

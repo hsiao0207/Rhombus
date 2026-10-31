@@ -41,6 +41,10 @@ export interface TransformationStats {
   total_matches: number
   total_cells_changed: number
   rows_affected: number
+  // A preview scans only the first rows of a large dataset; when rows_scanned is less
+  // than total_rows, the counts above are estimates. An applied transformation scans all.
+  rows_scanned: number
+  total_rows: number
   columns: Record<string, { matches: number; cells_changed: number }>
 }
 

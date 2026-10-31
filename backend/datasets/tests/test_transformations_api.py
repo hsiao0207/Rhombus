@@ -71,6 +71,28 @@ def test_apply_creates_new_version_and_highlights_changes(api_client, dataset_id
     assert page["changed"] == [[0, 2], [1, 2], [2, 2]]
 
 
+def test_preview_scans_only_the_first_rows_but_apply_covers_all(
+    api_client, dataset_id, settings, monkeypatch
+):
+    settings.PREVIEW_ROW_LIMIT = 2
+    # Small batches so the apply also exercises the batch-by-batch path.
+    monkeypatch.setattr("datasets.services.file_io.ROWS_PER_BATCH", 2)
+
+    response = preview(
+        api_client, dataset_id, pattern=EMAIL_PATTERN, replacement="REDACTED", columns=["Email"]
+    )
+
+    stats = response.json()["transformation"]["stats"]
+    assert stats["rows_scanned"] == 2
+    assert stats["total_rows"] == 3
+    assert stats["total_cells_changed"] == 2  # an estimate from the scanned rows
+
+    applied = apply(api_client, response.json()["transformation"]["id"]).json()
+    assert applied["transformation"]["stats"]["rows_scanned"] == 3
+    assert applied["transformation"]["stats"]["total_cells_changed"] == 3
+    assert [row[2] for row in rows(api_client, dataset_id)["rows"]] == ["REDACTED"] * 3
+
+
 def test_default_columns_are_text_columns_only(api_client, dataset_id):
     body = preview(api_client, dataset_id, pattern=r"\d", replacement="#").json()
 

@@ -8,7 +8,6 @@ storage and persistence, while `file_io` handles the raw file formats.
 import logging
 import math
 
-import pandas as pd
 from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
@@ -23,49 +22,69 @@ logger = logging.getLogger(__name__)
 
 def create_dataset(upload: UploadedFile) -> Dataset:
     """Validate and parse an upload, then store it as a dataset with version 1."""
-    if upload.size > settings.MAX_UPLOAD_SIZE_BYTES:
-        raise FileTooLarge(
-            f"Files must be {settings.MAX_UPLOAD_SIZE_MB} MB or smaller.",
-            details={"max_size_mb": settings.MAX_UPLOAD_SIZE_MB, "size_bytes": upload.size},
+    _check_size(
+        upload.size,
+        settings.MAX_UPLOAD_SIZE_MB,
+        settings.MAX_UPLOAD_SIZE_BYTES,
+        f"Files must be {settings.MAX_UPLOAD_SIZE_MB} MB or smaller.",
+    )
+    file_format = file_io.detect_format(upload.name)
+    if file_format == Dataset.FileFormat.XLSX:
+        _check_size(
+            upload.size,
+            settings.MAX_EXCEL_UPLOAD_SIZE_MB,
+            settings.MAX_EXCEL_UPLOAD_SIZE_BYTES,
+            f"Excel files must be {settings.MAX_EXCEL_UPLOAD_SIZE_MB} MB or smaller. "
+            "Save larger files as CSV.",
         )
 
-    file_format = file_io.detect_format(upload.name)
-    df = file_io.read_tabular(upload, file_format)
+    # The id exists before saving, so the parsed data can be written to its final path
+    # first; a file that fails to parse then leaves nothing in the database.
+    dataset = Dataset(original_name=upload.name, file_format=file_format, file_size=upload.size)
+    table = file_io.store_upload(upload, file_format, version_path(dataset, 1))
 
     with transaction.atomic():
         upload.seek(0)
-        dataset = Dataset(
-            original_name=upload.name,
-            file_format=file_format,
-            file_size=upload.size,
-        )
         dataset.original_file.save(upload.name, upload, save=False)
         dataset.save()
-        add_version(dataset, df, parent=None)
+        add_version(dataset, 1, table, parent=None)
 
-    logger.info("Created dataset %s (%d rows, %s)", dataset.id, len(df), file_format)
+    logger.info("Created dataset %s (%d rows, %s)", dataset.id, table.row_count, file_format)
     return dataset
 
 
+def _check_size(size: int, max_mb: int, max_bytes: int, message: str) -> None:
+    if size > max_bytes:
+        raise FileTooLarge(message, details={"max_size_mb": max_mb, "size_bytes": size})
+
+
+def next_version_no(dataset: Dataset) -> int:
+    """Must be called while holding a lock on the dataset (see `transformation_service`)."""
+    return (dataset.versions.aggregate(latest=Max("version_no"))["latest"] or 0) + 1
+
+
+def version_path(dataset: Dataset, version_no: int) -> str:
+    return f"datasets/{dataset.id}/versions/v{version_no}.parquet"
+
+
 def add_version(
-    dataset: Dataset, df: pd.DataFrame, parent: DatasetVersion | None
+    dataset: Dataset,
+    version_no: int,
+    table: file_io.StoredTable,
+    parent: DatasetVersion | None,
 ) -> DatasetVersion:
-    """Store `df` as the dataset's next version and make it the current one.
+    """Record an already-written Parquet file as a version and make it the current one.
 
     Must be called inside a transaction.
     """
-    latest = dataset.versions.aggregate(latest=Max("version_no"))["latest"] or 0
-    version_no = latest + 1
     version = DatasetVersion(
         dataset=dataset,
         version_no=version_no,
         parent=parent,
-        row_count=len(df),
-        columns=file_io.infer_column_kinds(df),
+        row_count=table.row_count,
+        columns=table.columns,
     )
-    version.data_file.name = file_io.save_parquet(
-        df, f"datasets/{dataset.id}/versions/v{version_no}.parquet"
-    )
+    version.data_file.name = table.path
     version.save()
 
     dataset.current_version = version

@@ -96,7 +96,7 @@ class Transformation(models.Model):
     replacement = models.TextField(blank=True)
     columns = models.JSONField()
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PREVIEWED)
-    # Shape: see regex_engine.ReplaceResult.stats
+    # Shape: regex_engine.ReplaceResult.stats plus "total_rows" (see transformation_service)
     stats = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
     applied_at = models.DateTimeField(null=True, blank=True)

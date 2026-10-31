@@ -2,7 +2,7 @@
 // statistics and before/after samples, plus the Apply button.
 
 import type { PreviewResponse } from '../api/types'
-import { plural } from '../lib/format'
+import { formatCount, plural } from '../lib/format'
 import { ErrorMessage } from './ErrorMessage'
 
 interface PreviewResultProps {
@@ -17,6 +17,9 @@ export function PreviewResult({ preview, applying, applyError, onApply, onDiscar
   const { transformation, samples } = preview
   const { stats } = transformation
   const nothingChanges = stats.total_cells_changed === 0
+  // Large datasets are previewed on their first rows only; apply always covers every row.
+  const estimated = stats.rows_scanned < stats.total_rows
+  const scanned = `the first ${formatCount(stats.rows_scanned)} of ${formatCount(stats.total_rows)} rows`
   const flags = transformation.flags.includes('IGNORECASE') ? 'i' : ''
 
   return (
@@ -58,13 +61,17 @@ export function PreviewResult({ preview, applying, applyError, onApply, onDiscar
       </dl>
 
       <p className="text-sm text-slate-800">
+        {estimated && <>In {scanned}, </>}
         <strong>{plural(stats.total_cells_changed, 'cell')}</strong> in{' '}
         {plural(stats.rows_affected, 'row')} will change ({plural(stats.total_matches, 'match', 'matches')}).
+        {estimated && <> Applying processes every row.</>}
       </p>
 
       {nothingChanges ? (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Nothing would change. Try describing the pattern differently.
+          {estimated
+            ? `Nothing would change in ${scanned}. The remaining rows are only checked when you apply.`
+            : 'Nothing would change. Try describing the pattern differently.'}
         </p>
       ) : (
         <div className="max-h-64 overflow-auto rounded-lg border border-slate-200">
@@ -111,7 +118,7 @@ export function PreviewResult({ preview, applying, applyError, onApply, onDiscar
         <button
           type="button"
           onClick={onApply}
-          disabled={applying || nothingChanges}
+          disabled={applying || (nothingChanges && !estimated)}
           className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-50"
         >
           {applying ? 'Applying…' : 'Apply'}
