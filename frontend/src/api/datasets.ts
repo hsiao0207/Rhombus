@@ -1,7 +1,15 @@
 // One typed function per backend endpoint (see backend/datasets/urls.py).
 
 import { postJson, request } from './client'
-import type { ApplyResponse, Dataset, PreviewRequest, PreviewResponse, RowsPage } from './types'
+import type {
+  ApplyResponse,
+  ClassifyRequest,
+  ClassifyTransformation,
+  Dataset,
+  PreviewRequest,
+  PreviewResponse,
+  RowsPage,
+} from './types'
 
 export function uploadDataset(file: File): Promise<Dataset> {
   const form = new FormData()
@@ -20,6 +28,16 @@ export function getRows(id: string, page: number, pageSize: number): Promise<Row
 
 export function previewTransformation(id: string, body: PreviewRequest): Promise<PreviewResponse> {
   return postJson<PreviewResponse>(`/datasets/${id}/transformations/preview/`, body)
+}
+
+export function previewClassification(
+  id: string,
+  body: ClassifyRequest,
+): Promise<PreviewResponse<ClassifyTransformation>> {
+  return postJson<PreviewResponse<ClassifyTransformation>>(
+    `/datasets/${id}/classifications/preview/`,
+    body,
+  )
 }
 
 export function applyTransformation(transformationId: string): Promise<ApplyResponse> {

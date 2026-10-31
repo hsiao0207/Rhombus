@@ -181,19 +181,23 @@ def write_parquet(batches: Iterable[pd.DataFrame], path: str) -> StoredTable:
     return StoredTable(path=stored_path, row_count=row_count, columns=kinds.result())
 
 
-def iter_batches(path: str) -> Iterator[pd.DataFrame]:
+def iter_batches(path: str, columns: list[str] | None = None) -> Iterator[pd.DataFrame]:
     """Yield a stored Parquet file as DataFrames of at most `ROWS_PER_BATCH` rows.
 
+    `columns` limits reading to those columns (Parquet stores each one separately).
     Always yields at least one (possibly empty) batch so the columns are known.
     """
     with default_storage.open(path, "rb") as file:
         parquet = pq.ParquetFile(file)
         empty = True
-        for batch in parquet.iter_batches(batch_size=ROWS_PER_BATCH):
+        for batch in parquet.iter_batches(batch_size=ROWS_PER_BATCH, columns=columns):
             empty = False
             yield batch.to_pandas()
         if empty:
-            yield parquet.schema_arrow.empty_table().to_pandas()
+            schema = parquet.schema_arrow
+            if columns is not None:
+                schema = pa.schema([schema.field(name) for name in columns])
+            yield schema.empty_table().to_pandas()
 
 
 def read_head(path: str, limit: int) -> pd.DataFrame:

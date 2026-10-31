@@ -48,22 +48,51 @@ export interface TransformationStats {
   columns: Record<string, { matches: number; cells_changed: number }>
 }
 
-export interface Transformation {
+interface TransformationBase {
   id: string
   dataset: string
   status: 'previewed' | 'applied'
   instruction: string
   explanation: string
-  pattern: string
-  flags: RegexFlag[]
-  replacement: string
+  /** Columns the operation reads. */
   columns: string[]
-  stats: TransformationStats
   source_version: number
   result_version: number | null
   created_at: string
   applied_at: string | null
 }
+
+export interface ReplaceTransformation extends TransformationBase {
+  kind: 'replace'
+  pattern: string
+  flags: RegexFlag[]
+  replacement: string
+  stats: TransformationStats
+}
+
+export interface ClassificationParams {
+  source_column: string
+  new_column: string
+  /** In order, ending with the automatic "Other". */
+  categories: string[]
+}
+
+export interface ClassificationStats {
+  /** Rows per category; may include "Unclassified" for values the LLM left unlabeled. */
+  categories: Record<string, number>
+  distinct_values: number
+  /** Non-empty rows; empty cells are not classified. */
+  rows_classified: number
+  total_rows: number
+}
+
+export interface ClassifyTransformation extends TransformationBase {
+  kind: 'classify'
+  params: ClassificationParams
+  stats: ClassificationStats
+}
+
+export type Transformation = ReplaceTransformation | ClassifyTransformation
 
 export interface CellChange {
   row: number
@@ -84,8 +113,15 @@ export interface PreviewRequest {
   flags?: RegexFlag[]
 }
 
-export interface PreviewResponse {
-  transformation: Transformation
+export interface ClassifyRequest {
+  column: string
+  /** Categories to use, or a description of how to group the values. */
+  instruction: string
+}
+
+export interface PreviewResponse<T extends Transformation = ReplaceTransformation> {
+  transformation: T
+  /** For a classification: before = the value, after = its category. */
   samples: CellChange[]
 }
 

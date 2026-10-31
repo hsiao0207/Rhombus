@@ -81,6 +81,11 @@ class PreviewRequestSerializer(serializers.Serializer):
         return attrs
 
 
+class ClassifyRequestSerializer(serializers.Serializer):
+    column = serializers.CharField()
+    instruction = serializers.CharField(max_length=settings.MAX_INSTRUCTION_LENGTH)
+
+
 class CellChangeSerializer(serializers.Serializer):
     row = serializers.IntegerField()
     column = serializers.CharField()
@@ -93,12 +98,14 @@ class TransformationSerializer(serializers.ModelSerializer):
     result_version = serializers.IntegerField(
         source="result_version.version_no", allow_null=True, default=None
     )
+    params = serializers.SerializerMethodField()
 
     class Meta:
         model = Transformation
         fields = [
             "id",
             "dataset",
+            "kind",
             "status",
             "instruction",
             "explanation",
@@ -106,9 +113,15 @@ class TransformationSerializer(serializers.ModelSerializer):
             "flags",
             "replacement",
             "columns",
+            "params",
             "stats",
             "source_version",
             "result_version",
             "created_at",
             "applied_at",
         ]
+
+    def get_params(self, transformation: Transformation) -> dict:
+        # The value -> category mapping can hold up to MAX_CLASSIFY_VALUES long strings
+        # and is only needed server-side, so it is left out of responses.
+        return {key: value for key, value in transformation.params.items() if key != "mapping"}

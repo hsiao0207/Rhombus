@@ -8,7 +8,8 @@ The flow is two-step so users can inspect what will change before committing:
    statistics and sample changes, without modifying any data. On larger datasets the
    statistics are estimates (`rows_scanned` < `total_rows`).
 2. `apply` re-runs exactly that transformation over every row, batch by batch, and
-   stores the result as a new version.
+   stores the result as a new version. It also applies classifications previewed by
+   `classification_service`, which share the same locking and versioning rules.
 """
 
 import logging
@@ -30,7 +31,13 @@ from datasets.exceptions import (
     UnknownColumns,
 )
 from datasets.models import Dataset, Transformation
-from datasets.services import dataset_service, file_io, llm, regex_engine
+from datasets.services import (
+    classification_service,
+    dataset_service,
+    file_io,
+    llm,
+    regex_engine,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -237,18 +244,24 @@ def apply(transformation: Transformation) -> Transformation:
             )
 
         source = transformation.source_version
-        replacer = regex_engine.Replacer(
-            regex_engine.compile_pattern(transformation.pattern, transformation.flags),
-            transformation.replacement,
-            transformation.columns,
-            timeout_seconds=settings.REGEX_APPLY_TIMEOUT_SECONDS,
-            cell_timeout_seconds=settings.REGEX_CELL_TIMEOUT_SECONDS,
-            sample_size=0,
-        )
-        # Read, replace and write one batch at a time so memory use stays flat.
+        replacer = None
+        if transformation.kind == Transformation.Kind.CLASSIFY:
+            # Uses the mapping stored at preview time; the LLM is not called again.
+            transform = classification_service.column_adder(transformation)
+        else:
+            replacer = regex_engine.Replacer(
+                regex_engine.compile_pattern(transformation.pattern, transformation.flags),
+                transformation.replacement,
+                transformation.columns,
+                timeout_seconds=settings.REGEX_APPLY_TIMEOUT_SECONDS,
+                cell_timeout_seconds=settings.REGEX_CELL_TIMEOUT_SECONDS,
+                sample_size=0,
+            )
+            transform = replacer.process
+        # Read, transform and write one batch at a time so memory use stays flat.
         version_no = dataset_service.next_version_no(dataset)
         table = file_io.write_parquet(
-            map(replacer.process, file_io.iter_batches(source.data_file.name)),
+            map(transform, file_io.iter_batches(source.data_file.name)),
             dataset_service.version_path(dataset, version_no),
         )
 
@@ -256,7 +269,9 @@ def apply(transformation: Transformation) -> Transformation:
             dataset, version_no, table, parent=source
         )
         transformation.status = Transformation.Status.APPLIED
-        transformation.stats = {**replacer.result.stats, "total_rows": table.row_count}
+        if replacer is not None:
+            # The preview's counts may be estimates; these cover every row.
+            transformation.stats = {**replacer.result.stats, "total_rows": table.row_count}
         transformation.applied_at = timezone.now()
         transformation.save()
 

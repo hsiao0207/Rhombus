@@ -1,8 +1,9 @@
 """
-Provider-neutral contract for turning a natural-language description into a regex.
+Provider-neutral contracts for the LLM features: turning a natural-language description
+into a regex (`RegexGenerator`) and sorting values into categories (`ValueClassifier`).
 
-The service layer depends only on `RegexGenerator`; `claude.py` implements it with the
-Anthropic API and tests substitute a fake.
+The service layer depends only on these protocols; `claude.py` implements them with the
+Anthropic API and tests substitute fakes.
 """
 
 from dataclasses import dataclass
@@ -54,3 +55,47 @@ class RegexRequest:
 
 class RegexGenerator(Protocol):
     def suggest(self, request: RegexRequest) -> RegexSuggestion: ...
+
+
+class ClassificationPlan(BaseModel):
+    """The categories to sort a column's values into."""
+
+    categories: list[str] = Field(
+        description="Category names. If the user listed categories, exactly those, in the "
+        "user's order and spelling. Otherwise 2 to 6 short names that fit the sample values. "
+        "Never include a catch-all such as 'Other'; one is added automatically."
+    )
+    explanation: str = Field(
+        description="One short sentence in English for the end user describing how the "
+        "values will be classified."
+    )
+
+
+class ValueLabel(BaseModel):
+    id: int
+    category: str
+
+
+class ClassificationBatch(BaseModel):
+    labels: list[ValueLabel]
+
+
+@dataclass(frozen=True)
+class ClassifyPlanRequest:
+    instruction: str
+    column: str
+    samples: list[str]
+
+
+@dataclass(frozen=True)
+class ClassifyBatchRequest:
+    instruction: str
+    categories: list[str]
+    # A value's id is its index in this list.
+    values: list[str]
+
+
+class ValueClassifier(Protocol):
+    def plan(self, request: ClassifyPlanRequest) -> ClassificationPlan: ...
+
+    def classify(self, request: ClassifyBatchRequest) -> ClassificationBatch: ...

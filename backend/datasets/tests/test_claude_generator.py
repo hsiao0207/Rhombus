@@ -1,6 +1,7 @@
 """
-Unit tests for `ClaudeRegexGenerator` using a fake Anthropic client (no network calls):
-request contents, refusal and unusable-output handling, and API error mapping.
+Unit tests for `ClaudeRegexGenerator` and `ClaudeValueClassifier` using a fake Anthropic
+client (no network calls): request contents, refusal and unusable-output handling, and
+API error mapping.
 """
 
 from types import SimpleNamespace
@@ -10,8 +11,16 @@ import httpx2
 import pytest
 
 from datasets.exceptions import LLMBadOutput, LLMRefused, LLMUnavailable
-from datasets.services.llm import ColumnContext, RegexRequest, RegexSuggestion
-from datasets.services.llm.claude import ClaudeRegexGenerator
+from datasets.services.llm import (
+    ClassificationPlan,
+    ClassifyBatchRequest,
+    ClassifyPlanRequest,
+    ColumnContext,
+    RegexRequest,
+    RegexSuggestion,
+    ValueLabel,
+)
+from datasets.services.llm.claude import ClaudeRegexGenerator, ClaudeValueClassifier, _batch_format
 from datasets.services.llm.prompts import build_user_message
 
 REQUEST = RegexRequest(
@@ -44,6 +53,7 @@ class FakeClient:
             return result
 
         self.beta = SimpleNamespace(messages=SimpleNamespace(parse=parse))
+        self.messages = SimpleNamespace(parse=parse)
 
 
 def generator(result):
@@ -111,3 +121,42 @@ def test_retry_message_includes_previous_attempt_and_problem():
     assert "<previous_attempt>" in message
     assert r"\\S+@\\S+" in message
     assert "The pattern matched nothing." in message
+
+
+def classifier(result):
+    client = FakeClient(result)
+    return ClaudeValueClassifier(
+        model="claude-haiku-5-5", effort="low", timeout_seconds=5, client=client
+    ), client
+
+
+def test_classifier_limits_categories_and_sends_no_fallback():
+    categories = ("Complaint", "Question", "Other")
+    parsed = _batch_format(categories)(labels=[{"id": 0, "category": "Question"}])
+    clf, client = classifier(response(parsed_output=parsed))
+
+    batch = clf.classify(
+        ClassifyBatchRequest(
+            instruction="classify", categories=list(categories), values=["Can I pay later?"]
+        )
+    )
+
+    assert batch.labels == [ValueLabel(id=0, category="Question")]
+    call = client.calls[0]
+    assert call["model"] == "claude-haiku-5-5"
+    assert call["output_config"] == {"effort": "low"}
+    # Claude Haiku 5.5 rejects server-side fallback, so none is requested.
+    assert "fallbacks" not in call and "betas" not in call
+    schema = call["output_format"].model_json_schema()
+    assert schema["$defs"]["ValueLabel"]["properties"]["category"]["enum"] == list(categories)
+    assert '0: "Can I pay later?"' in call["messages"][0]["content"]
+
+
+def test_classifier_plan_uses_the_plan_schema():
+    plan = ClassificationPlan(categories=["Positive", "Negative"], explanation="Sentiment.")
+    clf, client = classifier(response(parsed_output=plan))
+
+    assert (
+        clf.plan(ClassifyPlanRequest(instruction="sentiment", column="Notes", samples=[])) == plan
+    )
+    assert client.calls[0]["output_format"] is ClassificationPlan

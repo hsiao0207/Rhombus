@@ -1,12 +1,20 @@
-// Form for describing a change in plain English, choosing columns, previewing it and
-// applying it.
+// The two ways to transform a dataset, as tabs: find and replace (described in plain
+// English, turned into a regex) and classify (an LLM label per value, as a new column).
 
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
-import type { Dataset, PreviewRequest, Transformation } from '../api/types'
+import type { Dataset, PreviewRequest, ReplaceTransformation } from '../api/types'
 import { useApply, usePreview } from '../hooks/datasets'
 import { plural } from '../lib/format'
+import { ClassifyPanel } from './ClassifyPanel'
 import { ErrorMessage } from './ErrorMessage'
 import { PreviewResult } from './PreviewResult'
+
+type Mode = 'replace' | 'classify'
+
+const MODES: { value: Mode; label: string }[] = [
+  { value: 'replace', label: 'Find & replace' },
+  { value: 'classify', label: 'Classify' },
+]
 
 const EXAMPLES = [
   "Find email addresses and replace them with 'REDACTED'",
@@ -19,11 +27,37 @@ interface TransformPanelProps {
 }
 
 export function TransformPanel({ dataset }: TransformPanelProps) {
+  const [mode, setMode] = useState<Mode>('replace')
+
+  return (
+    <div className="space-y-4">
+      <div role="tablist" className="grid grid-cols-2 rounded-lg bg-slate-200/60 p-1 text-sm">
+        {MODES.map(({ value, label }) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={mode === value}
+            onClick={() => setMode(value)}
+            className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+              mode === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {mode === 'replace' ? <ReplacePanel dataset={dataset} /> : <ClassifyPanel dataset={dataset} />}
+    </div>
+  )
+}
+
+function ReplacePanel({ dataset }: TransformPanelProps) {
   const columns = dataset.current_version.columns
   const [instruction, setInstruction] = useState('')
   const [replacement, setReplacement] = useState('')
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
-  const [applied, setApplied] = useState<Transformation | null>(null)
+  const [applied, setApplied] = useState<ReplaceTransformation | null>(null)
 
   const preview = usePreview(dataset.id)
   const apply = useApply(dataset.id)
@@ -57,7 +91,7 @@ export function TransformPanel({ dataset }: TransformPanelProps) {
     if (!preview.data) return
     apply.mutate(preview.data.transformation.id, {
       onSuccess: ({ transformation }) => {
-        setApplied(transformation)
+        if (transformation.kind === 'replace') setApplied(transformation)
         preview.reset()
       },
     })

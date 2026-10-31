@@ -146,6 +146,8 @@ REST_FRAMEWORK = {
     # Per-IP limits on the expensive endpoints (LLM calls cost money, uploads use disk).
     "DEFAULT_THROTTLE_RATES": {
         "preview": os.getenv("THROTTLE_PREVIEW", "60/hour"),
+        # A classification preview makes several LLM calls (one per batch of values).
+        "classify": os.getenv("THROTTLE_CLASSIFY", "20/hour"),
         "upload": os.getenv("THROTTLE_UPLOAD", "30/hour"),
     },
     # Number of reverse proxies in front of Django (Caddy = 1). Used to read the real
@@ -200,6 +202,18 @@ LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "60"))
 LLM_MAX_ATTEMPTS = int(os.getenv("LLM_MAX_ATTEMPTS", "2"))
 # Distinct example values per column sent to the LLM as context.
 LLM_SAMPLE_VALUES = 5
+
+# Classification asks the LLM about every distinct value, so it uses a small, fast model
+# and is limited to columns with at most MAX_CLASSIFY_VALUES distinct values. Values go
+# out in batches of CLASSIFY_BATCH_SIZE, up to CLASSIFY_CONCURRENCY batches at a time.
+LLM_CLASSIFY_MODEL = os.getenv("LLM_CLASSIFY_MODEL", "claude-haiku-5-5")
+LLM_CLASSIFY_EFFORT = os.getenv("LLM_CLASSIFY_EFFORT", "low")
+MAX_CLASSIFY_VALUES = int(os.getenv("MAX_CLASSIFY_VALUES", "1000"))
+MAX_CLASSIFY_CATEGORIES = 20
+CLASSIFY_BATCH_SIZE = 100
+CLASSIFY_CONCURRENCY = 5
+# Longer values are truncated in the prompt; the category still applies to the full value.
+CLASSIFY_MAX_VALUE_CHARS = 500
 
 LOGGING = {
     "version": 1,

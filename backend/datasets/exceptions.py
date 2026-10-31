@@ -79,6 +79,22 @@ class NoTargetColumns(DomainError):
     default_message = "The dataset has no text columns. Select columns explicitly."
 
 
+class TooManyValues(DomainError):
+    code = "TOO_MANY_VALUES"
+    status_code = HTTPStatus.UNPROCESSABLE_ENTITY
+    default_message = "This column has too many distinct values to classify."
+
+
+class NothingToClassify(DomainError):
+    code = "NOTHING_TO_CLASSIFY"
+    default_message = "This column has no values to classify."
+
+
+class TooManyCategories(DomainError):
+    code = "TOO_MANY_CATEGORIES"
+    default_message = "Use at most 20 categories."
+
+
 class TransformationConflict(DomainError):
     status_code = HTTPStatus.CONFLICT
 

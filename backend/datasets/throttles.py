@@ -7,5 +7,9 @@ class PreviewThrottle(AnonRateThrottle):
     scope = "preview"
 
 
+class ClassifyThrottle(AnonRateThrottle):
+    scope = "classify"
+
+
 class UploadThrottle(AnonRateThrottle):
     scope = "upload"

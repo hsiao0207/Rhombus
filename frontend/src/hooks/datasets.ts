@@ -6,10 +6,11 @@ import {
   applyTransformation,
   getDataset,
   getRows,
+  previewClassification,
   previewTransformation,
   uploadDataset,
 } from '../api/datasets'
-import type { PreviewRequest } from '../api/types'
+import type { ClassifyRequest, PreviewRequest } from '../api/types'
 
 const keys = {
   dataset: (id: string) => ['dataset', id] as const,
@@ -42,6 +43,12 @@ export function useUploadDataset() {
 export function usePreview(datasetId: string) {
   return useMutation({
     mutationFn: (body: PreviewRequest) => previewTransformation(datasetId, body),
+  })
+}
+
+export function useClassifyPreview(datasetId: string) {
+  return useMutation({
+    mutationFn: (body: ClassifyRequest) => previewClassification(datasetId, body),
   })
 }
 

@@ -64,7 +64,7 @@ export function Workspace({ datasetId, onNewFile }: WorkspaceProps) {
           {version.version_no > 1 && (
             <p className="flex items-center gap-2 text-xs text-slate-500">
               <span className="inline-block size-3 rounded-sm bg-amber-100 ring-1 ring-amber-300" />
-              Cells changed by the last applied replacement
+              Cells changed or added by the last apply
             </p>
           )}
           <DataTable

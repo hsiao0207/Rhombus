@@ -73,9 +73,14 @@ class DatasetVersion(models.Model):
 
 class Transformation(models.Model):
     """
-    One find-and-replace operation. It is created when the user previews it and becomes
-    `applied` once the result has been stored as a new dataset version.
+    One operation on a dataset: a regex find-and-replace, or an LLM classification that
+    adds a category column. It is created when the user previews it and becomes `applied`
+    once the result has been stored as a new dataset version.
     """
+
+    class Kind(models.TextChoices):
+        REPLACE = "replace", "Find and replace"
+        CLASSIFY = "classify", "Classify"
 
     class Status(models.TextChoices):
         PREVIEWED = "previewed", "Previewed"
@@ -87,16 +92,23 @@ class Transformation(models.Model):
     result_version = models.ForeignKey(
         DatasetVersion, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
+    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.REPLACE)
     # The user's natural-language request (empty when the pattern was entered by hand).
     instruction = models.TextField(blank=True)
     # The LLM's plain-language description of the pattern (empty for hand-written ones).
     explanation = models.TextField(blank=True)
-    pattern = models.TextField()
+    # Find-and-replace only.
+    pattern = models.TextField(blank=True)
     flags = models.JSONField(default=list)
     replacement = models.TextField(blank=True)
+    # Columns read by the operation.
     columns = models.JSONField()
+    # Classify only: source/new column, categories and the value -> category mapping
+    # decided at preview time (see classification_service).
+    params = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PREVIEWED)
-    # Shape: regex_engine.ReplaceResult.stats plus "total_rows" (see transformation_service)
+    # Replace: regex_engine.ReplaceResult.stats plus "total_rows" (see transformation_service).
+    # Classify: see classification_service.
     stats = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
     applied_at = models.DateTimeField(null=True, blank=True)
@@ -105,4 +117,6 @@ class Transformation(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self) -> str:
+        if self.kind == self.Kind.CLASSIFY:
+            return f"classify {self.params.get('source_column')!r} ({self.status})"
         return f"{self.pattern!r} -> {self.replacement!r} ({self.status})"

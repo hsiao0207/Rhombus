@@ -12,14 +12,15 @@ from rest_framework.response import Response
 from datasets.models import Dataset, Transformation
 from datasets.serializers import (
     CellChangeSerializer,
+    ClassifyRequestSerializer,
     DatasetSerializer,
     DatasetUploadSerializer,
     PreviewRequestSerializer,
     RowsQuerySerializer,
     TransformationSerializer,
 )
-from datasets.services import dataset_service, transformation_service
-from datasets.throttles import PreviewThrottle, UploadThrottle
+from datasets.services import classification_service, dataset_service, transformation_service
+from datasets.throttles import ClassifyThrottle, PreviewThrottle, UploadThrottle
 
 
 @api_view(["GET"])
@@ -78,13 +79,33 @@ class DatasetViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
                 replacement=data.get("replacement"),
                 columns=data.get("columns"),
             )
-        return Response(
-            {
-                "transformation": TransformationSerializer(result.transformation).data,
-                "samples": CellChangeSerializer(result.samples, many=True).data,
-            },
-            status=status.HTTP_201_CREATED,
+        return _preview_response(result)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="classifications/preview",
+        throttle_classes=[ClassifyThrottle],
+    )
+    def preview_classification(self, request: Request, pk=None) -> Response:
+        params = ClassifyRequestSerializer(data=request.data)
+        params.is_valid(raise_exception=True)
+        result = classification_service.preview_classification(
+            self.get_object(),
+            column=params.validated_data["column"],
+            instruction=params.validated_data["instruction"],
         )
+        return _preview_response(result)
+
+
+def _preview_response(result) -> Response:
+    return Response(
+        {
+            "transformation": TransformationSerializer(result.transformation).data,
+            "samples": CellChangeSerializer(result.samples, many=True).data,
+        },
+        status=status.HTTP_201_CREATED,
+    )
 
 
 class TransformationViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
