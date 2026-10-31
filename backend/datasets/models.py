@@ -73,13 +73,15 @@ class DatasetVersion(models.Model):
 
 class Transformation(models.Model):
     """
-    One operation on a dataset: a regex find-and-replace, or an LLM classification that
-    adds a category column. It is created when the user previews it and becomes `applied`
-    once the result has been stored as a new dataset version.
+    One operation on a dataset: a regex find-and-replace, a regex extraction into new
+    columns, or an LLM classification that adds a category column. It is created when
+    the user previews it and becomes `applied` once the result has been stored as a new
+    dataset version.
     """
 
     class Kind(models.TextChoices):
         REPLACE = "replace", "Find and replace"
+        EXTRACT = "extract", "Extract"
         CLASSIFY = "classify", "Classify"
 
     class Status(models.TextChoices):
@@ -97,17 +99,20 @@ class Transformation(models.Model):
     instruction = models.TextField(blank=True)
     # The LLM's plain-language description of the pattern (empty for hand-written ones).
     explanation = models.TextField(blank=True)
-    # Find-and-replace only.
+    # Replace and extract.
     pattern = models.TextField(blank=True)
     flags = models.JSONField(default=list)
+    # Replace only.
     replacement = models.TextField(blank=True)
     # Columns read by the operation.
     columns = models.JSONField()
-    # Classify only: source/new column, categories and the value -> category mapping
-    # decided at preview time (see classification_service).
+    # Extract: source column and the group -> new column names.
+    # Classify: source/new column, categories and the value -> category mapping decided
+    # at preview time (see classification_service).
     params = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PREVIEWED)
     # Replace: regex_engine.ReplaceResult.stats plus "total_rows" (see transformation_service).
+    # Extract: regex_engine.ExtractResult.stats plus "total_rows".
     # Classify: see classification_service.
     stats = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -119,4 +124,6 @@ class Transformation(models.Model):
     def __str__(self) -> str:
         if self.kind == self.Kind.CLASSIFY:
             return f"classify {self.params.get('source_column')!r} ({self.status})"
+        if self.kind == self.Kind.EXTRACT:
+            return f"extract {self.pattern!r} from {self.params.get('source_column')!r}"
         return f"{self.pattern!r} -> {self.replacement!r} ({self.status})"

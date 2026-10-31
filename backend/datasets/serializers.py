@@ -81,6 +81,19 @@ class PreviewRequestSerializer(serializers.Serializer):
         return attrs
 
 
+class ExtractRequestSerializer(serializers.Serializer):
+    instruction = serializers.CharField(max_length=settings.MAX_INSTRUCTION_LENGTH)
+    # Omitted: the LLM picks the column from the instruction.
+    column = serializers.CharField(required=False, allow_null=True)
+
+
+class ExtractSampleSerializer(serializers.Serializer):
+    row = serializers.IntegerField()
+    value = serializers.CharField()
+    # New column name -> extracted text (null when that group captured nothing).
+    parts = serializers.DictField(child=serializers.CharField(allow_null=True))
+
+
 class ClassifyRequestSerializer(serializers.Serializer):
     column = serializers.CharField()
     instruction = serializers.CharField(max_length=settings.MAX_INSTRUCTION_LENGTH)

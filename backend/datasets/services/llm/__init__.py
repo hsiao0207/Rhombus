@@ -1,5 +1,6 @@
 """
-LLM integration: turning natural language into regex, and classifying values.
+LLM integration: turning natural language into regex (to replace or extract), and
+classifying values.
 
 Callers use `get_regex_generator()`, `get_value_classifier()` and the types re-exported
 here, never a provider module directly, so the provider can be swapped and tests can
@@ -18,12 +19,14 @@ from datasets.services.llm.base import (
     ClassifyBatchRequest,
     ClassifyPlanRequest,
     ColumnContext,
+    ExtractSuggestion,
     RegexGenerator,
     RegexRequest,
     RegexSuggestion,
     ValueClassifier,
     ValueLabel,
 )
+from datasets.services.llm.context import column_context
 
 __all__ = [
     "ClassificationBatch",
@@ -31,11 +34,13 @@ __all__ = [
     "ClassifyBatchRequest",
     "ClassifyPlanRequest",
     "ColumnContext",
+    "ExtractSuggestion",
     "RegexGenerator",
     "RegexRequest",
     "RegexSuggestion",
     "ValueClassifier",
     "ValueLabel",
+    "column_context",
     "get_regex_generator",
     "get_value_classifier",
 ]

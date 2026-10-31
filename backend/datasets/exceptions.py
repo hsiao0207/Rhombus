@@ -63,6 +63,13 @@ class InvalidReplacement(DomainError):
     )
 
 
+class InvalidGroups(DomainError):
+    code = "INVALID_GROUPS"
+    default_message = (
+        "The pattern needs at least one named group, such as (?P<domain>...), to become a column."
+    )
+
+
 class RegexTimeout(DomainError):
     code = "REGEX_TIMEOUT"
     status_code = HTTPStatus.UNPROCESSABLE_ENTITY

@@ -15,11 +15,18 @@ from datasets.serializers import (
     ClassifyRequestSerializer,
     DatasetSerializer,
     DatasetUploadSerializer,
+    ExtractRequestSerializer,
+    ExtractSampleSerializer,
     PreviewRequestSerializer,
     RowsQuerySerializer,
     TransformationSerializer,
 )
-from datasets.services import classification_service, dataset_service, transformation_service
+from datasets.services import (
+    classification_service,
+    dataset_service,
+    extraction_service,
+    transformation_service,
+)
 from datasets.throttles import ClassifyThrottle, PreviewThrottle, UploadThrottle
 
 
@@ -84,6 +91,22 @@ class DatasetViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     @action(
         detail=True,
         methods=["post"],
+        url_path="extractions/preview",
+        throttle_classes=[PreviewThrottle],
+    )
+    def preview_extraction(self, request: Request, pk=None) -> Response:
+        params = ExtractRequestSerializer(data=request.data)
+        params.is_valid(raise_exception=True)
+        result = extraction_service.preview_extraction(
+            self.get_object(),
+            instruction=params.validated_data["instruction"],
+            column=params.validated_data.get("column"),
+        )
+        return _preview_response(result, ExtractSampleSerializer)
+
+    @action(
+        detail=True,
+        methods=["post"],
         url_path="classifications/preview",
         throttle_classes=[ClassifyThrottle],
     )
@@ -98,11 +121,11 @@ class DatasetViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
         return _preview_response(result)
 
 
-def _preview_response(result) -> Response:
+def _preview_response(result, sample_serializer=CellChangeSerializer) -> Response:
     return Response(
         {
             "transformation": TransformationSerializer(result.transformation).data,
-            "samples": CellChangeSerializer(result.samples, many=True).data,
+            "samples": sample_serializer(result.samples, many=True).data,
         },
         status=status.HTTP_201_CREATED,
     )

@@ -8,8 +8,9 @@ The flow is two-step so users can inspect what will change before committing:
    statistics and sample changes, without modifying any data. On larger datasets the
    statistics are estimates (`rows_scanned` < `total_rows`).
 2. `apply` re-runs exactly that transformation over every row, batch by batch, and
-   stores the result as a new version. It also applies classifications previewed by
-   `classification_service`, which share the same locking and versioning rules.
+   stores the result as a new version. It also applies extractions and classifications
+   previewed by `extraction_service` and `classification_service`, which share the same
+   locking and versioning rules.
 """
 
 import logging
@@ -21,12 +22,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from datasets.exceptions import (
-    InvalidRegex,
-    InvalidReplacement,
     NoTargetColumns,
     PatternGenerationFailed,
-    PatternMatchesEmpty,
-    RegexTimeout,
     TransformationConflict,
     UnknownColumns,
 )
@@ -34,6 +31,7 @@ from datasets.models import Dataset, Transformation
 from datasets.services import (
     classification_service,
     dataset_service,
+    extraction_service,
     file_io,
     llm,
     regex_engine,
@@ -46,11 +44,6 @@ logger = logging.getLogger(__name__)
 class Preview:
     transformation: Transformation
     samples: list[regex_engine.CellChange]
-
-
-# Errors caused by an unusable pattern. When the pattern came from the LLM these are fed
-# back to it so it can correct itself; for hand-written patterns they go to the user.
-PATTERN_ERRORS = (InvalidRegex, PatternMatchesEmpty, InvalidReplacement, RegexTimeout)
 
 
 def preview(
@@ -131,7 +124,9 @@ def generate_pattern(
     LLM inferred from the instruction. If the suggested pattern is unusable or matches
     nothing, the problem is sent back to the LLM for another attempt.
     """
-    request = llm.RegexRequest(instruction=instruction, columns=_column_context(df, column_kinds))
+    request = llm.RegexRequest(
+        instruction=instruction, columns=llm.column_context(df, column_kinds)
+    )
     known_columns = {column["name"] for column in column_kinds}
     max_attempts = settings.LLM_MAX_ATTEMPTS
 
@@ -151,7 +146,7 @@ def generate_pattern(
                 final_replacement,
                 final_columns,
             )
-        except PATTERN_ERRORS as exc:
+        except regex_engine.PATTERN_ERRORS as exc:
             problem = exc.message
         else:
             # A result that changes nothing may be legitimate, but more often means a wrong
@@ -212,21 +207,6 @@ def _record_preview(dataset, result, **fields) -> Preview:
     return Preview(transformation=transformation, samples=result.samples)
 
 
-def _column_context(df, column_kinds) -> list[llm.ColumnContext]:
-    """Column names, kinds and a few distinct example values to ground the LLM."""
-    context = []
-    for column in column_kinds:
-        values = df[column["name"]].dropna().drop_duplicates().head(settings.LLM_SAMPLE_VALUES)
-        context.append(
-            llm.ColumnContext(
-                name=column["name"],
-                kind=column["kind"],
-                samples=[value[:100] for value in values],
-            )
-        )
-    return context
-
-
 def apply(transformation: Transformation) -> Transformation:
     with transaction.atomic():
         # Lock the dataset so two concurrent applies cannot both build on the same version.
@@ -244,20 +224,7 @@ def apply(transformation: Transformation) -> Transformation:
             )
 
         source = transformation.source_version
-        replacer = None
-        if transformation.kind == Transformation.Kind.CLASSIFY:
-            # Uses the mapping stored at preview time; the LLM is not called again.
-            transform = classification_service.column_adder(transformation)
-        else:
-            replacer = regex_engine.Replacer(
-                regex_engine.compile_pattern(transformation.pattern, transformation.flags),
-                transformation.replacement,
-                transformation.columns,
-                timeout_seconds=settings.REGEX_APPLY_TIMEOUT_SECONDS,
-                cell_timeout_seconds=settings.REGEX_CELL_TIMEOUT_SECONDS,
-                sample_size=0,
-            )
-            transform = replacer.process
+        transform, final_stats = _batch_transform(transformation)
         # Read, transform and write one batch at a time so memory use stays flat.
         version_no = dataset_service.next_version_no(dataset)
         table = file_io.write_parquet(
@@ -269,9 +236,9 @@ def apply(transformation: Transformation) -> Transformation:
             dataset, version_no, table, parent=source
         )
         transformation.status = Transformation.Status.APPLIED
-        if replacer is not None:
+        if (stats := final_stats()) is not None:
             # The preview's counts may be estimates; these cover every row.
-            transformation.stats = {**replacer.result.stats, "total_rows": table.row_count}
+            transformation.stats = {**stats, "total_rows": table.row_count}
         transformation.applied_at = timezone.now()
         transformation.save()
 
@@ -282,6 +249,27 @@ def apply(transformation: Transformation) -> Transformation:
         transformation.result_version.version_no,
     )
     return transformation
+
+
+def _batch_transform(transformation: Transformation):
+    """Return the function apply runs on each batch, and a function giving the final
+    statistics once every batch has run (None keeps the preview's)."""
+    if transformation.kind == Transformation.Kind.CLASSIFY:
+        # Uses the mapping stored at preview time; the LLM is not called again, and the
+        # preview's statistics already covered every row.
+        return classification_service.column_adder(transformation), lambda: None
+    if transformation.kind == Transformation.Kind.EXTRACT:
+        transform, extractor = extraction_service.column_inserter(transformation)
+        return transform, lambda: extractor.result.stats
+    replacer = regex_engine.Replacer(
+        regex_engine.compile_pattern(transformation.pattern, transformation.flags),
+        transformation.replacement,
+        transformation.columns,
+        timeout_seconds=settings.REGEX_APPLY_TIMEOUT_SECONDS,
+        cell_timeout_seconds=settings.REGEX_CELL_TIMEOUT_SECONDS,
+        sample_size=0,
+    )
+    return replacer.process, lambda: replacer.result.stats
 
 
 def _resolve_columns(available: list[dict], requested: list[str] | None) -> list[str]:

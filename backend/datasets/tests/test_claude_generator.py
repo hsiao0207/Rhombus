@@ -16,6 +16,7 @@ from datasets.services.llm import (
     ClassifyBatchRequest,
     ClassifyPlanRequest,
     ColumnContext,
+    ExtractSuggestion,
     RegexRequest,
     RegexSuggestion,
     ValueLabel,
@@ -160,3 +161,16 @@ def test_classifier_plan_uses_the_plan_schema():
         clf.plan(ClassifyPlanRequest(instruction="sentiment", column="Notes", samples=[])) == plan
     )
     assert client.calls[0]["output_format"] is ClassificationPlan
+
+
+def test_extraction_uses_its_own_prompt_and_schema():
+    extraction = ExtractSuggestion(
+        pattern=r"@(?P<domain>\S+)", flags=[], column="Email", explanation="Domains."
+    )
+    gen, client = generator(response(parsed_output=extraction))
+
+    assert gen.suggest_extraction(REQUEST) == extraction
+    call = client.calls[0]
+    assert call["output_format"] is ExtractSuggestion
+    assert "named group" in call["system"]
+    assert call["fallbacks"] == "default"  # Opus, like regex suggestions

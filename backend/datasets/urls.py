@@ -6,6 +6,7 @@ API routes, mounted under `/api/`.
     GET  datasets/{id}/                           dataset metadata and current version
     GET  datasets/{id}/rows/                      paginated rows with changed cells
     POST datasets/{id}/transformations/preview/   preview a find-and-replace
+    POST datasets/{id}/extractions/preview/       preview extracting parts into new columns
     POST datasets/{id}/classifications/preview/   preview classifying a column
     GET  transformations/{id}/                    a previewed or applied transformation
     POST transformations/{id}/apply/              apply a preview as a new version

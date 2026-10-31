@@ -1,20 +1,29 @@
-// The two ways to transform a dataset, as tabs: find and replace (described in plain
-// English, turned into a regex) and classify (an LLM label per value, as a new column).
+// The ways to transform a dataset, as tabs: find and replace and extract (described in
+// plain English, turned into a regex by the LLM) and classify (an LLM label per value,
+// as a new column).
 
-import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import type { Dataset, PreviewRequest, ReplaceTransformation } from '../api/types'
 import { useApply, usePreview } from '../hooks/datasets'
 import { plural } from '../lib/format'
 import { ClassifyPanel } from './ClassifyPanel'
 import { ErrorMessage } from './ErrorMessage'
+import { ExtractPanel } from './ExtractPanel'
 import { PreviewResult } from './PreviewResult'
 
-type Mode = 'replace' | 'classify'
+type Mode = 'replace' | 'extract' | 'classify'
 
 const MODES: { value: Mode; label: string }[] = [
   { value: 'replace', label: 'Find & replace' },
+  { value: 'extract', label: 'Extract' },
   { value: 'classify', label: 'Classify' },
 ]
+
+const PANELS: Record<Mode, (props: TransformPanelProps) => ReactNode> = {
+  replace: ReplacePanel,
+  extract: ExtractPanel,
+  classify: ClassifyPanel,
+}
 
 const EXAMPLES = [
   "Find email addresses and replace them with 'REDACTED'",
@@ -28,10 +37,11 @@ interface TransformPanelProps {
 
 export function TransformPanel({ dataset }: TransformPanelProps) {
   const [mode, setMode] = useState<Mode>('replace')
+  const Panel = PANELS[mode]
 
   return (
     <div className="space-y-4">
-      <div role="tablist" className="grid grid-cols-2 rounded-lg bg-slate-200/60 p-1 text-sm">
+      <div role="tablist" className="grid grid-cols-3 rounded-lg bg-slate-200/60 p-1 text-sm">
         {MODES.map(({ value, label }) => (
           <button
             key={value}
@@ -47,7 +57,8 @@ export function TransformPanel({ dataset }: TransformPanelProps) {
           </button>
         ))}
       </div>
-      {mode === 'replace' ? <ReplacePanel dataset={dataset} /> : <ClassifyPanel dataset={dataset} />}
+      {/* Keyed so switching tabs starts the other panel fresh. */}
+      <Panel key={mode} dataset={dataset} />
     </div>
   )
 }

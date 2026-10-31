@@ -1,12 +1,18 @@
 """
-Unit tests for the regex engine: replacement semantics, statistics, and rejection of
-invalid, empty-matching or catastrophically slow patterns.
+Unit tests for the regex engine: replacement and extraction semantics, statistics, and
+rejection of invalid, empty-matching or catastrophically slow patterns.
 """
 
 import pandas as pd
 import pytest
 
-from datasets.exceptions import InvalidRegex, InvalidReplacement, PatternMatchesEmpty, RegexTimeout
+from datasets.exceptions import (
+    InvalidGroups,
+    InvalidRegex,
+    InvalidReplacement,
+    PatternMatchesEmpty,
+    RegexTimeout,
+)
 from datasets.services import regex_engine
 from datasets.services.regex_engine import CellChange
 
@@ -136,3 +142,70 @@ def test_batches_give_the_same_result_as_one_pass():
     assert replacer.result.stats == one_pass.stats
     # Sample rows are numbered across the whole dataset, not within each batch.
     assert [sample.row for sample in replacer.result.samples] == [0, 2, 3]
+
+
+def extract(values, pattern, columns, **kwargs):
+    compiled = regex_engine.compile_extract_pattern(pattern)
+    extractor = regex_engine.Extractor(compiled, columns, timeout_seconds=5, **kwargs)
+    return extractor.process(pd.Series(values)), extractor
+
+
+def test_extract_splits_into_one_column_per_named_group():
+    extracted, extractor = extract(
+        ["Jane Doe", "Mary Ann Lee", "Cher", None],
+        r"(?P<first>\S+)\s+(?P<last>.+)",
+        {"first": "Name_first", "last": "Name_last"},
+    )
+
+    assert list(extracted.columns) == ["Name_first", "Name_last"]
+    assert extracted.iloc[1].tolist() == ["Mary", "Ann Lee"]
+    # No match (a single word) and empty cells give empty values.
+    assert extracted.iloc[2:].isna().all().all()
+    assert extractor.result.stats == {
+        "rows_matched": 2,
+        "rows_scanned": 4,
+        "columns": {"Name_first": 2, "Name_last": 2},
+    }
+
+
+def test_extract_uses_only_the_first_match():
+    extracted, _ = extract(["a@x.com and b@y.com"], r"@(?P<domain>[\w.]+)", {"domain": "d"})
+    assert extracted["d"].tolist() == ["x.com"]
+
+
+def test_extract_allows_one_group_name_per_alternative():
+    pattern = r"(?:(?P<year>\d{4})-\d{2}-\d{2}|\d{1,2}/\d{1,2}/(?P<year>\d{4}))"
+    extracted, _ = extract(["2020-04-17", "11/07/2024", "n/a"], pattern, {"year": "y"})
+    assert extracted["y"].tolist()[:2] == ["2020", "2024"]
+    assert pd.isna(extracted["y"].iloc[2])
+
+
+def test_extract_groups_that_capture_nothing_are_empty():
+    extracted, _ = extract(["id 7", "id"], r"id(?: (?P<n>\d+))?", {"n": "n"})
+    assert extracted["n"].iloc[0] == "7"
+    assert pd.isna(extracted["n"].iloc[1])
+
+
+def test_extract_batches_number_samples_across_the_dataset():
+    compiled = regex_engine.compile_extract_pattern(r"(?P<n>\d)")
+    extractor = regex_engine.Extractor(compiled, {"n": "n"}, timeout_seconds=5, sample_size=3)
+
+    for batch in (pd.Series(["a", "1"]), pd.Series(["2", "b"], index=[0, 1])):
+        extractor.process(batch)
+
+    assert [(s.row, s.parts) for s in extractor.result.samples] == [
+        (1, {"n": "1"}),
+        (2, {"n": "2"}),
+    ]
+    assert extractor.result.rows_scanned == 4
+
+
+@pytest.mark.parametrize("pattern", [r"\d+", "".join(f"(?P<g{i}>x)" for i in range(11))])
+def test_extract_patterns_need_one_to_ten_named_groups(pattern):
+    with pytest.raises(InvalidGroups):
+        regex_engine.compile_extract_pattern(pattern)
+
+
+def test_extract_times_out_on_catastrophic_backtracking():
+    with pytest.raises(RegexTimeout):
+        extract(["a" * 40 + "!"], r"(?P<a>(a|aa)+)$", {"a": "a"}, cell_timeout_seconds=0.1)

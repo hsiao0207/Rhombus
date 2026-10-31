@@ -1,6 +1,7 @@
 """
 Provider-neutral contracts for the LLM features: turning a natural-language description
-into a regex (`RegexGenerator`) and sorting values into categories (`ValueClassifier`).
+into a regex for replacing or extracting (`RegexGenerator`) and sorting values into
+categories (`ValueClassifier`).
 
 The service layer depends only on these protocols; `claude.py` implements them with the
 Anthropic API and tests substitute fakes.
@@ -37,6 +38,23 @@ class RegexSuggestion(BaseModel):
     )
 
 
+class ExtractSuggestion(BaseModel):
+    """A regex whose named groups pull the pieces the user asked for out of one column."""
+
+    pattern: str = Field(
+        description="Python `regex`-compatible regular expression with one named group "
+        "(?P<name>...) per piece to extract. It must never match empty text."
+    )
+    flags: list[Flag] = Field(description="Regex flags to apply. Usually empty.")
+    column: str = Field(
+        description="Exact name of the column to extract from, from the provided list."
+    )
+    explanation: str = Field(
+        description="One short sentence in English for the end user describing what will "
+        "be extracted."
+    )
+
+
 @dataclass(frozen=True)
 class ColumnContext:
     name: str
@@ -49,12 +67,14 @@ class RegexRequest:
     instruction: str
     columns: list[ColumnContext]
     # Set on self-correction retries: the rejected answer and why it was rejected.
-    previous: RegexSuggestion | None = None
+    previous: RegexSuggestion | ExtractSuggestion | None = None
     feedback: str | None = None
 
 
 class RegexGenerator(Protocol):
     def suggest(self, request: RegexRequest) -> RegexSuggestion: ...
+
+    def suggest_extraction(self, request: RegexRequest) -> ExtractSuggestion: ...
 
 
 class ClassificationPlan(BaseModel):

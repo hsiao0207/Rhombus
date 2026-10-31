@@ -1,8 +1,9 @@
 """
-Safe regex replacement over DataFrame columns.
+Safe regex replacement and extraction over DataFrame columns.
 
 This module is framework-free: it takes DataFrames and returns new ones plus statistics.
-`Replacer` processes a dataset batch by batch so large files never have to fit in memory;
+`Replacer` (find and replace) and `Extractor` (copy named groups into new columns)
+process a dataset batch by batch so large files never have to fit in memory;
 `replace_in_columns` is the one-shot form for a single DataFrame.
 
 Safety:
@@ -25,13 +26,31 @@ import numpy as np
 import pandas as pd
 import regex
 
-from datasets.exceptions import InvalidRegex, InvalidReplacement, PatternMatchesEmpty, RegexTimeout
+from datasets.exceptions import (
+    InvalidGroups,
+    InvalidRegex,
+    InvalidReplacement,
+    PatternMatchesEmpty,
+    RegexTimeout,
+)
 
 FLAGS = {
     "IGNORECASE": regex.IGNORECASE,
     "MULTILINE": regex.MULTILINE,
     "DOTALL": regex.DOTALL,
 }
+
+# Errors caused by an unusable pattern. When the pattern came from the LLM these are fed
+# back to it so it can correct itself; for hand-written patterns they go to the user.
+PATTERN_ERRORS = (
+    InvalidRegex,
+    PatternMatchesEmpty,
+    InvalidReplacement,
+    InvalidGroups,
+    RegexTimeout,
+)
+
+MAX_EXTRACT_GROUPS = 10
 
 
 @dataclass(frozen=True)
@@ -80,6 +99,25 @@ def compile_pattern(pattern: str, flags: list[str] | None = None) -> regex.Patte
     if compiled.search("") is not None:
         raise PatternMatchesEmpty()
     return compiled
+
+
+def compile_extract_pattern(pattern: str, flags: list[str] | None = None) -> regex.Pattern:
+    """Compile a pattern for extraction: it needs 1 to MAX_EXTRACT_GROUPS named groups."""
+    compiled = compile_pattern(pattern, flags)
+    groups = named_groups(compiled)
+    if not groups:
+        raise InvalidGroups()
+    if len(groups) > MAX_EXTRACT_GROUPS:
+        raise InvalidGroups(
+            f"Use at most {MAX_EXTRACT_GROUPS} named groups.", details={"groups": groups}
+        )
+    return compiled
+
+
+def named_groups(compiled: regex.Pattern) -> list[str]:
+    """Named groups in pattern order. A name reused in several alternatives (allowed by
+    the `regex` package, e.g. one `year` group per date format) counts once."""
+    return sorted(compiled.groupindex, key=compiled.groupindex.__getitem__)
 
 
 class Replacer:
@@ -180,6 +218,95 @@ def replace_in_columns(
     data = replacer.process(df)
     replacer.result.data = data
     return replacer.result
+
+
+@dataclass(frozen=True)
+class ExtractSample:
+    row: int
+    value: str
+    parts: dict[str, str | None]  # new column -> extracted text
+
+
+@dataclass
+class ExtractResult:
+    extracted: dict[str, int] = field(default_factory=dict)  # new column -> rows with a value
+    rows_matched: int = 0
+    rows_scanned: int = 0
+    samples: list[ExtractSample] = field(default_factory=list)
+
+    @property
+    def stats(self) -> dict:
+        return {
+            "rows_matched": self.rows_matched,
+            "rows_scanned": self.rows_scanned,
+            "columns": dict(self.extracted),
+        }
+
+
+class Extractor:
+    """Copies the named groups of the first match in each cell into new columns, one
+    batch at a time. `columns` maps each group name to its new column, in output order.
+
+    A cell without a match, or a group that captured nothing, gives an empty value.
+    """
+
+    def __init__(
+        self,
+        compiled: regex.Pattern,
+        columns: dict[str, str],
+        *,
+        timeout_seconds: float,
+        cell_timeout_seconds: float = 1.0,
+        sample_size: int = 20,
+    ) -> None:
+        self._compiled = compiled
+        self._columns = columns
+        self._deadline = time.monotonic() + timeout_seconds
+        self._cell_timeout = cell_timeout_seconds
+        self._sample_size = sample_size
+        self.result = ExtractResult(extracted=dict.fromkeys(columns.values(), 0))
+
+    def process(self, values: pd.Series) -> pd.DataFrame:
+        """Return the new columns for one batch of the source column, on its index."""
+        result = self.result
+        found = self._search_unique_values(values)
+        extracted = pd.DataFrame(index=values.index)
+        for index, column in enumerate(self._columns.values()):
+            parts = {value: groups[index] for value, groups in found.items() if groups}
+            extracted[column] = values.map(parts)
+            result.extracted[column] += int(extracted[column].notna().sum())
+
+        matched = values.isin([value for value, groups in found.items() if groups])
+        result.rows_matched += int(matched.sum())
+        wanted = self._sample_size - len(result.samples)
+        for position in np.flatnonzero(matched.to_numpy())[: max(wanted, 0)]:
+            result.samples.append(
+                ExtractSample(
+                    row=result.rows_scanned + int(position),
+                    value=values.iat[position],
+                    parts={
+                        column: None if pd.isna(part) else part
+                        for column, part in extracted.iloc[position].items()
+                    },
+                )
+            )
+        result.rows_scanned += len(values)
+        return extracted
+
+    def _search_unique_values(self, values: pd.Series) -> dict[str, tuple | None]:
+        """{value: captured text per group, or None when nothing matched}."""
+        groups = list(self._columns)
+        found: dict[str, tuple | None] = {}
+        for value in values.dropna().unique():
+            remaining = self._deadline - time.monotonic()
+            if remaining <= 0:
+                raise RegexTimeout()
+            try:
+                match = self._compiled.search(value, timeout=min(remaining, self._cell_timeout))
+            except TimeoutError:
+                raise RegexTimeout() from None
+            found[value] = None if match is None else tuple(match.group(g) or None for g in groups)
+        return found
 
 
 def _substitute(

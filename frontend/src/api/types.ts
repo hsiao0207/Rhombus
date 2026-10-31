@@ -70,6 +70,29 @@ export interface ReplaceTransformation extends TransformationBase {
   stats: TransformationStats
 }
 
+export interface ExtractParams {
+  source_column: string
+  /** One per named group, in pattern order; inserted after the source column. */
+  new_columns: { group: string; column: string }[]
+}
+
+export interface ExtractStats {
+  rows_matched: number
+  /** Below total_rows when a large dataset was previewed on its first rows only. */
+  rows_scanned: number
+  total_rows: number
+  /** Rows with a value, per new column. */
+  columns: Record<string, number>
+}
+
+export interface ExtractTransformation extends TransformationBase {
+  kind: 'extract'
+  pattern: string
+  flags: RegexFlag[]
+  params: ExtractParams
+  stats: ExtractStats
+}
+
 export interface ClassificationParams {
   source_column: string
   new_column: string
@@ -92,7 +115,7 @@ export interface ClassifyTransformation extends TransformationBase {
   stats: ClassificationStats
 }
 
-export type Transformation = ReplaceTransformation | ClassifyTransformation
+export type Transformation = ReplaceTransformation | ExtractTransformation | ClassifyTransformation
 
 export interface CellChange {
   row: number
@@ -113,16 +136,29 @@ export interface PreviewRequest {
   flags?: RegexFlag[]
 }
 
+export interface ExtractRequest {
+  instruction: string
+  /** Omitted: the LLM picks the column from the instruction. */
+  column?: string
+}
+
+export interface ExtractSample {
+  row: number
+  value: string
+  /** New column name -> extracted text. */
+  parts: Record<string, string | null>
+}
+
 export interface ClassifyRequest {
   column: string
   /** Categories to use, or a description of how to group the values. */
   instruction: string
 }
 
-export interface PreviewResponse<T extends Transformation = ReplaceTransformation> {
+export interface PreviewResponse<T extends Transformation = ReplaceTransformation, S = CellChange> {
   transformation: T
   /** For a classification: before = the value, after = its category. */
-  samples: CellChange[]
+  samples: S[]
 }
 
 export interface ApplyResponse {

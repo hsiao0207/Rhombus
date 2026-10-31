@@ -6,6 +6,9 @@ import type {
   ClassifyRequest,
   ClassifyTransformation,
   Dataset,
+  ExtractRequest,
+  ExtractSample,
+  ExtractTransformation,
   PreviewRequest,
   PreviewResponse,
   RowsPage,
@@ -28,6 +31,16 @@ export function getRows(id: string, page: number, pageSize: number): Promise<Row
 
 export function previewTransformation(id: string, body: PreviewRequest): Promise<PreviewResponse> {
   return postJson<PreviewResponse>(`/datasets/${id}/transformations/preview/`, body)
+}
+
+export function previewExtraction(
+  id: string,
+  body: ExtractRequest,
+): Promise<PreviewResponse<ExtractTransformation, ExtractSample>> {
+  return postJson<PreviewResponse<ExtractTransformation, ExtractSample>>(
+    `/datasets/${id}/extractions/preview/`,
+    body,
+  )
 }
 
 export function previewClassification(

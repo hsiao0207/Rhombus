@@ -17,6 +17,7 @@ const TITLES: Record<string, string> = {
   UNKNOWN_COLUMNS: 'Unknown columns',
   NO_TARGET_COLUMNS: 'No text columns',
   PATTERN_GENERATION_FAILED: "Couldn't build a working pattern",
+  INVALID_GROUPS: 'Pattern has no named groups',
   TOO_MANY_VALUES: 'Too many distinct values',
   NOTHING_TO_CLASSIFY: 'Nothing to classify',
   TOO_MANY_CATEGORIES: 'Too many categories',

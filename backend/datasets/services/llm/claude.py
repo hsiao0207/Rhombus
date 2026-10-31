@@ -17,6 +17,7 @@ from datasets.services.llm.base import (
     ClassificationPlan,
     ClassifyBatchRequest,
     ClassifyPlanRequest,
+    ExtractSuggestion,
     RegexRequest,
     RegexSuggestion,
     ValueLabel,
@@ -55,6 +56,22 @@ class ClaudeRegexGenerator:
             messages=[{"role": "user", "content": prompts.build_user_message(request)}],
             output_config={"effort": self._effort},
             output_format=RegexSuggestion,
+        )
+
+    def suggest_extraction(self, request: RegexRequest) -> ExtractSuggestion:
+        return _parse(
+            self._client.beta.messages.parse,
+            "extraction suggestion",
+            model=self._model,
+            max_tokens=16000,
+            betas=[FALLBACK_BETA],
+            fallbacks="default",
+            system=prompts.EXTRACT_SYSTEM_PROMPT,
+            # Same message as for replacing: request, column samples, and on retries the
+            # previous answer with the problem found.
+            messages=[{"role": "user", "content": prompts.build_user_message(request)}],
+            output_config={"effort": self._effort},
+            output_format=ExtractSuggestion,
         )
 
 
