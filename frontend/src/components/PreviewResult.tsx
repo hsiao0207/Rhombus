@@ -21,6 +21,10 @@ export function PreviewResult({ preview, applying, applyError, onApply, onDiscar
   const estimated = stats.rows_scanned < stats.total_rows
   const scanned = `the first ${formatCount(stats.rows_scanned)} of ${formatCount(stats.total_rows)} rows`
   const flags = transformation.flags.includes('IGNORECASE') ? 'i' : ''
+  // Every searched column is listed, but usually only some of them contain matches.
+  const changedColumns = transformation.columns
+    .map((name) => ({ name, cells: stats.columns[name]?.cells_changed ?? 0 }))
+    .filter(({ cells }) => cells > 0)
 
   return (
     <section aria-label="Preview" className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
@@ -54,9 +58,26 @@ export function PreviewResult({ preview, applying, applyError, onApply, onDiscar
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium tracking-wide text-slate-500 uppercase">Columns</dt>
+            <dt className="text-xs font-medium tracking-wide text-slate-500 uppercase">
+              Searched in
+            </dt>
             <dd className="mt-0.5 text-slate-800">{transformation.columns.join(', ')}</dd>
           </div>
+        </div>
+        <div>
+          <dt className="text-xs font-medium tracking-wide text-slate-500 uppercase">Will change</dt>
+          <dd className="mt-0.5 text-slate-800">
+            {changedColumns.length > 0 ? (
+              changedColumns.map(({ name, cells }, index) => (
+                <span key={name}>
+                  {index > 0 && ', '}
+                  {name} <span className="text-slate-500">({plural(cells, 'cell')})</span>
+                </span>
+              ))
+            ) : (
+              <span className="text-slate-500 italic">no columns</span>
+            )}
+          </dd>
         </div>
       </dl>
 

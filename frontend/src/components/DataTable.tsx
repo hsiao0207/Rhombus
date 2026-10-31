@@ -1,10 +1,13 @@
 // Paginated table of the current dataset version. Cells changed by the latest apply
 // are highlighted.
 
+import { useState } from 'react'
 import type { ColumnInfo, RowsPage } from '../api/types'
 import { formatCount } from '../lib/format'
 
 const PAGE_SIZES = [25, 50, 100, 200]
+const NAV_BUTTON =
+  'rounded-md border border-slate-300 px-2.5 py-1 hover:bg-slate-50 disabled:opacity-40'
 
 interface DataTableProps {
   data: RowsPage | undefined
@@ -103,7 +106,7 @@ export function DataTable({
             ? '0 rows'
             : `Rows ${formatCount(firstRow + 1)}–${formatCount(firstRow + data.rows.length)} of ${formatCount(data.total_rows)}`}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5">
             <span className="text-slate-500">Per page</span>
             <select
@@ -120,25 +123,83 @@ export function DataTable({
           </label>
           <button
             type="button"
+            onClick={() => onPageChange(1)}
+            disabled={page <= 1}
+            aria-label="First page"
+            className={NAV_BUTTON}
+          >
+            «
+          </button>
+          <button
+            type="button"
             onClick={() => onPageChange(page - 1)}
             disabled={page <= 1}
-            className="rounded-md border border-slate-300 px-2.5 py-1 hover:bg-slate-50 disabled:opacity-40"
+            className={NAV_BUTTON}
           >
             ‹ Prev
           </button>
-          <span className="tabular-nums">
-            {formatCount(page)} / {formatCount(totalPages)}
-          </span>
+          {/* Keyed by page so the box shows the new page after any navigation. */}
+          <PageInput key={page} page={page} totalPages={totalPages} onPageChange={onPageChange} />
           <button
             type="button"
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages}
-            className="rounded-md border border-slate-300 px-2.5 py-1 hover:bg-slate-50 disabled:opacity-40"
+            className={NAV_BUTTON}
           >
             Next ›
+          </button>
+          <button
+            type="button"
+            onClick={() => onPageChange(totalPages)}
+            disabled={page >= totalPages}
+            aria-label="Last page"
+            className={NAV_BUTTON}
+          >
+            »
           </button>
         </div>
       </div>
     </div>
+  )
+}
+
+interface PageInputProps {
+  page: number
+  totalPages: number
+  onPageChange: (page: number) => void
+}
+
+/** Type a page number and press Enter to jump; out-of-range numbers are clamped. */
+function PageInput({ page, totalPages, onPageChange }: PageInputProps) {
+  const [draft, setDraft] = useState(String(page))
+
+  function commit() {
+    // Accept "17,217" as shown in the label, not just "17217".
+    const requested = Number.parseInt(draft.replace(/[,\s]/g, ''), 10)
+    if (Number.isNaN(requested)) {
+      setDraft(String(page))
+      return
+    }
+    const target = Math.min(Math.max(requested, 1), totalPages)
+    if (target === page) setDraft(String(page))
+    else onPageChange(target)
+  }
+
+  return (
+    <label className="flex items-center gap-1.5 tabular-nums">
+      <span className="text-slate-500">Page</span>
+      <input
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') commit()
+        }}
+        onBlur={commit}
+        inputMode="numeric"
+        aria-label="Page number"
+        className="w-20 rounded-md border border-slate-300 px-1.5 py-1 text-right"
+      />
+      <span className="text-slate-500">of {formatCount(totalPages)}</span>
+    </label>
   )
 }
