@@ -89,15 +89,17 @@ sequenceDiagram
     User->>UI: Upload file
     UI->>API: POST /api/datasets/
     API->>Store: Parse to version 1 (Parquet)
-    User->>UI: "Find email addresses and replace them with 'REDACTED'"
+    User->>UI: Describe the change in English
     UI->>API: POST /api/datasets/{id}/transformations/preview/
+    Store-->>API: First 50,000 rows of the current version
     API->>LLM: Description + column names + sample values
     LLM-->>API: pattern, replacement, columns, explanation
     API->>API: Validate and run the regex (retry with feedback if unusable)
+    API->>Store: Record the preview
     API-->>UI: Statistics + before/after samples
     User->>UI: Apply
     UI->>API: POST /api/transformations/{id}/apply/
-    API->>Store: Save result as version 2
+    API->>Store: Re-run on every row in batches, save as version 2
     UI->>API: GET /api/datasets/{id}/rows/ (changed cells highlighted)
 ```
 
