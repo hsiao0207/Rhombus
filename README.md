@@ -613,6 +613,12 @@ support server-side fallback, so classification requests do not ask for it.
 - **Excel is not streamed.** pandas loads `.xlsx` files whole, hence their lower 50 MB
   limit. Excel itself caps a sheet at about one million rows, and saving as CSV lifts the
   limit.
+- **Sample values come from the first rows.** Claude sees up to five distinct values per
+  column, taken in order from the first 50,000 rows, so a format that only appears later
+  in the file can be missed. The preview's per-column counts make this visible, and
+  sampling one value per "shape" (for example `9999-999-999` vs. `(99) 9999-9999`) would
+  make it less likely. No sample can guarantee every format; showing every value to the
+  model would turn one LLM call into one per value, as in *Classify*.
 - **Replacement is per cell.** A regex sees one cell at a time, so it cannot express
   "only the row where ID = 2". A natural next step is an LLM-generated row filter that
   restricts which rows the regex runs on.
