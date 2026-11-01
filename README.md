@@ -14,8 +14,6 @@ you name.
 
 https://github.com/user-attachments/assets/421bfa04-a710-4ecc-be81-56e07236a7e8
 
-
-
 ---
 
 ## Contents
@@ -161,8 +159,8 @@ npm run dev                              # http://localhost:5173
 Open http://localhost:5173. The Vite dev server forwards `/api` to Django, so the browser
 talks to a single origin, as it does in production.
 
-Without `ANTHROPIC_API_KEY`, everything except pattern generation works and the preview
-returns a clear `LLM_NOT_CONFIGURED` error.
+Without `ANTHROPIC_API_KEY`, uploading and browsing work, and the find-and-replace,
+extract and classify previews return a clear `LLM_NOT_CONFIGURED` error.
 
 ### Configuration
 
@@ -170,7 +168,7 @@ All settings come from environment variables (see [`.env.example`](.env.example)
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | Required for natural-language patterns |
+| `ANTHROPIC_API_KEY` | — | Required for every LLM feature: find and replace, extract, classify |
 | `LLM_MODEL` | `claude-opus-5-5` | Claude model that writes regexes |
 | `LLM_EFFORT` | `medium` | Reasoning effort (`low` … `max`); trades latency and cost for quality |
 | `LLM_CLASSIFY_MODEL` | `claude-haiku-5-5` | Claude model that labels values for *Classify* |
@@ -199,9 +197,11 @@ npm run lint             # oxlint
 npm run build            # type-check (tsc) and production build
 ```
 
-The tests cover file parsing, the regex engine (including catastrophic backtracking), the
-preview/apply API, versioning and conflict detection, the self-correction loop, the Claude
-client's error handling, and rate limiting.
+The tests cover file parsing and batch-by-batch storage, the regex engine (including
+catastrophic backtracking), the preview/apply API, versioning and conflict detection, the
+self-correction loops, extraction, classification (batching, retries and the stored
+mapping), the Claude client's requests and error handling, rate limiting, and the
+cleanup of expired datasets.
 
 Unit tests cannot tell whether Claude writes *good* regexes, so there is also an
 evaluation command that runs the real pipeline against a deliberately messy dataset
@@ -252,7 +252,8 @@ Internet ──HTTPS──▶ Caddy ──▶ app (gunicorn + Django + built Rea
 3. Open `https://<elastic-ip-with-dashes>.sslip.io`.
 
 To ship a new version, push to `main`, then run `./deploy/deploy.sh` on the server (it
-pulls, rebuilds, restarts and prunes old images).
+pulls, rebuilds, restarts and prunes old images). Caddy does not reload its config on
+its own, so after a `Caddyfile` change also run `docker compose restart caddy`.
 
 ## API reference
 
@@ -278,15 +279,15 @@ POST /api/datasets/{id}/transformations/preview/
 Content-Type: application/json
 
 {
-  "instruction": "Find email addresses in the Email column and replace them with 'REDACTED'",
-  "replacement": null,
-  "columns": null
+  "instruction": "Find email addresses in the Email column and replace them with 'REDACTED'"
 }
 ```
 
-`replacement` and `columns` are optional overrides. When set, they take precedence over
-what Claude inferred from the instruction. If no replacement is given anywhere, matches
-are deleted. If no columns are given anywhere, all text columns are searched.
+Two optional overrides take precedence over what Claude inferred from the instruction:
+`replacement` (a string; `""` deletes matches) and `columns` (a list of column names).
+Omit them, or send `"replacement": null`, to use the instruction. If no replacement is
+given anywhere, matches are deleted. If no columns are given anywhere, all text columns
+are searched.
 
 Instead of `instruction`, the API also accepts an explicit `pattern` (with optional
 `flags`: `IGNORECASE`, `MULTILINE`, `DOTALL`), which skips the LLM. The UI does not expose
@@ -592,8 +593,8 @@ test file's *Notes* column has 523,485 distinct values, which estimates to:
 | Claude Opus 5.5 | about 5,235 | about 13M / 7M | about $190 |
 
 That is affordable with Haiku, but takes around an hour, far beyond a web request. So
-classification is capped at 1,000 distinct values (at most 11 calls, a few seconds with
-Haiku), and the error message suggests a better-suited column. Going beyond that needs a
+classification is capped at 1,000 distinct values (about 11 calls, around 10 seconds
+with Haiku), and the error message suggests a better-suited column. Going beyond that needs a
 background job using the Message Batches API (half price, results within 24 hours) and a
 progress indicator. For comparison, a real six-note classification measured about 700
 input and 100 output tokens per call, and around 4 seconds end to end.
@@ -654,7 +655,7 @@ support server-side fallback, so classification requests do not ask for it.
 │   │   ├── services/
 │   │   │   ├── file_io.py               # CSV/Excel parsing, Parquet storage, paging
 │   │   │   ├── dataset_service.py       # Upload, versions, rows with changed cells
-│   │   │   ├── regex_engine.py          # Safe, fast regex replacement over DataFrames
+│   │   │   ├── regex_engine.py          # Safe, fast regex replacement and extraction
 │   │   │   ├── transformation_service.py# Preview/apply and the LLM retry loop
 │   │   │   ├── extraction_service.py    # Extract: named groups into new columns
 │   │   │   ├── classification_service.py# Classify: distinct values, batches, stored mapping
@@ -666,7 +667,7 @@ support server-side fallback, so classification requests do not ask for it.
 ├── frontend/src/
 │   ├── api/                     # Typed fetch client and endpoint functions
 │   ├── hooks/                   # TanStack Query hooks
-│   └── components/              # Upload, transform panel, preview, data table
+│   └── components/              # Upload, replace/extract/classify panels, previews, table
 ├── deploy/                      # EC2 setup, .env generation, deploy script
 ├── Dockerfile                   # Multi-stage: build React, then the Python runtime
 ├── docker-compose.yml           # Caddy + app + PostgreSQL + hourly cleanup
