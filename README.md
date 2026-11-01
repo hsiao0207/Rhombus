@@ -12,7 +12,12 @@ you name.
 
 <!-- Demo video: drag the .mp4 into this file while editing it on GitHub; GitHub uploads it and inserts a URL that renders as an inline player. -->
 
-**Demo video:** _coming soon_
+**Demo video:** 
+
+
+https://github.com/user-attachments/assets/421bfa04-a710-4ecc-be81-56e07236a7e8
+
+
 
 ---
 
