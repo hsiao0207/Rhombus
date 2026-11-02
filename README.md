@@ -103,7 +103,8 @@ sequenceDiagram
     UI->>API: GET /api/datasets/{id}/rows/ (changed cells highlighted)
 ```
 
-With the exercise's example, Claude returns a structured answer such as:
+With the plain-text request *"Find email addresses in the Email column and replace them
+with 'REDACTED'."*, Claude returns a structured answer such as:
 
 | Field | Value |
 |---|---|
